@@ -24,6 +24,10 @@ public class Vehicle implements Comparable<Vehicle> { // объявляем кл
     private double capacity; // грузоподъёмность транспортного средства
     private VehicleType type; // тип транспортного средства
     private FuelType fuelType; // тип топлива транспортного средства
+
+    public Vehicle() { // конструктор по умолчанию
+        this.creationDate = LocalDate.now(); // автоматически устанавливаем текущую дату как дату создания
+    }
     
     /**
      * Конструктор для создания нового транспортного средства
