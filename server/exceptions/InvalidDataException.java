@@ -1,4 +1,4 @@
-package exceptions;
+package server.exceptions;
 
 // Проверяемое исключение для неверных данных в файле
 public class InvalidDataException extends Exception {

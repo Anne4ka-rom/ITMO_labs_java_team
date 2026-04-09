@@ -1,7 +1,7 @@
-package file; // класс находится в папке file
+package server.file; // класс находится в папке file
 
-import model.*; // импорт всех классов модели (Vehicle, Coordinates, VehicleType, FuelType)
-import exceptions.InvalidDataException; // импорт пользовательского исключения для ошибок валидации данных
+import server.exceptions.InvalidDataException; // импорт пользовательского исключения для ошибок валидации данных
+import server.model.*;
 
 import java.io.*; // импорт классов для ввода/вывода (FileReader, FileOutputStream, IOException)
 import java.nio.charset.StandardCharsets; // импорт для указания кодировки UTF-8
