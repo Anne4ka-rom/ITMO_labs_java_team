@@ -1,7 +1,8 @@
-package utils; // класс находится в папке utils
+package server.utils; // класс находится в папке utils
 
-import model.Vehicle; // импорт класса Vehicle для работы с транспортными средствами
 import java.util.Collection; // импорт интерфейса Collection для работы с коллекциями
+
+import server.model.Vehicle;
 
 /**
  * Генератор уникальных ID для объектов Vehicle

@@ -1,4 +1,4 @@
-package model; // класс находится в папке model
+package server.model; // класс находится в папке model
 
 /**
  * Enum типов топлива

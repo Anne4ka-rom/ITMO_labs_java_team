@@ -1,9 +1,9 @@
-package collection; // класс находится в папке collection
+package server.collection; // класс находится в папке collection
 
-import model.Vehicle; // импорт класса Vehicle для работы с транспортными средствами
-import model.VehicleType; // импорт перечисления VehicleType для работы с типами транспортного средства
-import file.FileManager; // импорт класса FileManager для работы с файлами
-import utils.IdGenerator; // импорт утилиты для генерации ID
+import server.file.FileManager;
+import server.model.Vehicle;
+import server.model.VehicleType;
+import server.utils.IdGenerator;
 
 import java.time.LocalDate; // импорт для работы с датами
 import java.util.*; // импорт коллекций (Stack, Collections) и вспомогательных классов

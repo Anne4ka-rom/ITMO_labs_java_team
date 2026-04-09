@@ -1,4 +1,4 @@
-package model; // класс находится в папке model
+package server.model; // класс находится в папке model
 
 import java.io.Serializable; // импорт интерфейса Serializable для возможности сериализации объекта (передачи по сети и сохранения в файл)
 import java.time.LocalDate; // импорт класса LocalDate для работы с датами (дата создания транспортного средства)
