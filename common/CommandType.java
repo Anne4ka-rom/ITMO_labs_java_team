@@ -1,6 +1,12 @@
 package common;
 
-// Перечисление всех поддерживаемых команд
+/**
+ * Перечисление всех поддерживаемых команд.
+ * Каждая команда имеет имя (для ввода пользователем) и описание (для справки).
+ *
+ * @author Polina
+ * @version 1.0
+ */
 
 public enum CommandType {
     HELP("help", "вывести справку по доступным командам"),
@@ -19,10 +25,10 @@ public enum CommandType {
     EXIT("exit", "завершить работу клиента"),
     SAVE("save", "сохранить коллекцию (только сервер)");
 
-    private final String name;
-    private final String description;
+    private final String name; // имя команды, которое вводит пользователь
+    private final String description; // краткое описание команды для справки
 
-    CommandType(String name, String description) {
+    CommandType(String name, String description) { // конструктор для создания типа команды
         this.name = name;
         this.description = description;
     }
@@ -36,11 +42,11 @@ public enum CommandType {
     }
 
     public static CommandType fromString(String str) {
-        for (CommandType type : values()) {
-            if (type.name.equalsIgnoreCase(str)) {
-                return type;
+        for (CommandType type : values()) { // перебираем все значения перечисления
+            if (type.name.equalsIgnoreCase(str)) { // сравниваем без учета регистра
+                return type; // возвращаем найденный тип
             }
         }
-        return null;
+        return null; // команда не найдена
     }
 }
