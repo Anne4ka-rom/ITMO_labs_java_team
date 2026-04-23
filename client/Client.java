@@ -58,7 +58,7 @@ public class Client {
                     sendCommand(input); // отправляем команду на сервер
                 }
 
-            } catch (IOException e) { // // сервер недоступен - ждем и пытаемся переподключиться
+            } catch (IOException e) { // сервер недоступен - ждем и пытаемся переподключиться
                 System.out.println("Сервер недоступен. Повторное подключение через " +
                                    RECONNECT_DELAY / 1000 + " секунд...");
                 try {
