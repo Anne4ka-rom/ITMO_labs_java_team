@@ -16,7 +16,7 @@ import common.model.VehicleType;
  * добавление, удаление, обновление, фильтрация, сортировка и сохранение
  * 
  * @author Anni
- * @version 1.0
+ * @version 2.0
  * @see Vehicle
  * @see FileManager
  * @see IdGenerator
