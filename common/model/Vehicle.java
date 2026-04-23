@@ -1,5 +1,6 @@
-package model; // класс находится в папке model
+package common.model; // класс находится в папке model
 
+import java.io.Serializable; // импорт интерфейса Serializable для возможности сериализации объекта (передачи по сети и сохранения в файл)
 import java.time.LocalDate; // импорт класса LocalDate для работы с датами (дата создания транспортного средства)
 
 /**
@@ -8,14 +9,19 @@ import java.time.LocalDate; // импорт класса LocalDate для раб
  * идентификатор, название, координаты, дату создания, мощность двигателя,
  * грузоподъемность, тип транспортного средства и тип топлива.
  * Реализует интерфейс {@link Comparable} для естественной сортировки по имени
+ * Реализует интерфейс {@link Serializable} для передачи по сети
  * 
  * @author Anni
- * @version 1.0
+ * @version 2.0
+ * @since 1.0
+ * @see Serializable
  * @see Coordinates
  * @see VehicleType
  * @see FuelType
  */
-public class Vehicle implements Comparable<Vehicle> { // объявляем класс Vehicle, реализующий интерфейс Comparable
+public class Vehicle implements Comparable<Vehicle>, Serializable { // объявляем класс Vehicle, реализующий интерфейс Comparable
+    private static final long serialVersionUID = 1L; // // уникальный идентификатор версии класса для сериализации
+    
     private int id; // уникальный номер
     private String name; // имя
     private Coordinates coordinates; // координаты транспортного средства

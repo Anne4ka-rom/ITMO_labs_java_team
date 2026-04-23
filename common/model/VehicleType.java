@@ -1,4 +1,4 @@
-package model; // класс находится в папке model
+package common.model; // класс находится в папке model
 
 /**
  * Enum типов транспортных средств
