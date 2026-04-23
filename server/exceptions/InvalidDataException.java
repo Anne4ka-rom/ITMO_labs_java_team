@@ -1,6 +1,6 @@
-package exceptions;
+package server.exceptions;
 
-// Проверяемое исключение для неверных данных в файле
+// проверяемое исключение для неверных данных в файле
 public class InvalidDataException extends Exception {
     public InvalidDataException(String message) {
         super(message); // вызов конструктора родительского класса Exception с сообщением
