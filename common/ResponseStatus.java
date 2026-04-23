@@ -20,4 +20,3 @@ public enum ResponseStatus {
         return this == ERROR;
     }
 }
-}
