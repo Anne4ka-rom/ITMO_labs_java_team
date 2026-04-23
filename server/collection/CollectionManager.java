@@ -1,13 +1,14 @@
 package server.collection; // класс находится в папке collection
 
 import server.file.FileManager;
-import server.model.Vehicle;
-import server.model.VehicleType;
 import server.utils.IdGenerator;
 
 import java.time.LocalDate; // импорт для работы с датами
 import java.util.*; // импорт коллекций (Stack, Collections) и вспомогательных классов
 import java.util.stream.Collectors; // импорт для сбора результатов Stream API
+
+import common.model.Vehicle;
+import common.model.VehicleType;
 
 /**
  * Менеджер коллекции транспортных средств

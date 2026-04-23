@@ -1,4 +1,4 @@
-package server.model; // класс находится в папке model
+package common.model; // класс находится в папке model
 
 import java.io.Serializable; // импорт интерфейса Serializable для возможности сериализации объекта (передачи по сети и сохранения в файл)
 

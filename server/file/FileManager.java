@@ -1,7 +1,6 @@
 package server.file; // класс находится в папке file
 
 import server.exceptions.InvalidDataException; // импорт пользовательского исключения для ошибок валидации данных
-import server.model.*;
 
 import java.io.*; // импорт классов для ввода/вывода (FileReader, FileOutputStream, IOException)
 import java.nio.charset.StandardCharsets; // импорт для указания кодировки UTF-8
@@ -9,6 +8,8 @@ import java.time.LocalDate; // импорт для работы с датами
 import java.util.Stack; // импорт коллекции Stack для хранения транспортных средств
 import java.util.regex.Matcher; // импорт Matcher для работы с регулярными выражениями
 import java.util.regex.Pattern; // импорт Pattern для создания регулярных выражений
+
+import common.model.*;
 
 /**
  * Управляет чтением и записью XML файла.

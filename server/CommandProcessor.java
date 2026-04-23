@@ -1,9 +1,9 @@
 package server; // объявление пакета server, где находится класс для обработки команд
 
 import common.*; // импорт всех классов из пакета common 
+import common.model.Vehicle;
+import common.model.VehicleType;
 import server.collection.CollectionManager; // импорт менеджера коллекции для управления данными
-import server.model.Vehicle; // импорт класса Vehicle
-import server.model.VehicleType; // импорт перечисления типов транспортных средств
 
 /**
  * Модуль обработки полученных команд
