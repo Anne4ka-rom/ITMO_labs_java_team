@@ -1,7 +1,5 @@
 package server; // класс находится в пакете server
 
-import common.Response; // импорт класса ответа из общей модели
-
 import java.io.*; // импорт всех классов для работы с потоками ввода-вывода
 import java.nio.ByteBuffer; // импорт для работы с буфером байтов в nio
 import java.nio.channels.SocketChannel; // импорт канала для tcp-соединения
