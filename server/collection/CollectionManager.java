@@ -1,243 +1,245 @@
-package server.collection; // класс находится в папке collection
+package server.collection; // класс находится в пакете collection серверной части
 
-import server.file.FileManager;
-import server.utils.IdGenerator;
+import server.file.FileManager; // импорт класса для работы с файлами
+import server.utils.IdGenerator; // импорт генератора уникальных идентификаторов
 
-import java.time.LocalDate; // импорт для работы с датами
-import java.util.*; // импорт коллекций (Stack, Collections) и вспомогательных классов
-import java.util.stream.Collectors; // импорт для сбора результатов Stream API
+import java.time.LocalDate; // импорт класса для работы с датами
+import java.util.*; // импорт всех утилитных классов из java.util
+import java.util.stream.Collectors; // импорт коллектора для stream api
 
-import common.model.Vehicle;
-import common.model.VehicleType;
+import common.model.Vehicle; // импорт класса транспортного средства из общей модели
+import common.model.VehicleType; // импорт перечисления типов транспортных средств из общей модели
 
 /**
- * Менеджер коллекции транспортных средств
- * Хранит коллекцию Stack<Vehicle> и предоставляет методы для управления ею:
- * добавление, удаление, обновление, фильтрация, сортировка и сохранение
+ * управляет коллекцией объектов vehicle
+ * обеспечивает основные операции добавления, удаления, обновления и поиска элементов
  * 
- * @author Anni
- * @version 2.0
- * @see Vehicle
- * @see FileManager
- * @see IdGenerator
+ * @author anni
+ * @version 1.0
  */
 public class CollectionManager { // объявляем класс для управления коллекцией
-    private Stack<Vehicle> collection; // стек для хранения транспортных средств
-    private final LocalDate initializationDate; // дата инициализации менеджера (final -- неизменяемая)
-    private final FileManager fileManager; // менеджер файлов для сохранения/загрузки (final - неизменяемый)
+    private Stack<Vehicle> collection; // хранилище элементов в виде стека
+    private final LocalDate initializationDate; // дата создания менеджера коллекции
+    private final FileManager fileManager; // менеджер для работы с файловым хранилищем
 
     /**
-     * Конструктор класса CollectionManager
-     * Инициализирует пустую коллекцию, устанавливает текущую дату инициализации
-     * и автоматически загружает существующую коллекцию из файла
+     * создает новый менеджер коллекции с привязкой к файловому менеджеру
+     * инициализирует дату создания и загружает коллекцию из файла
      * 
-     * @param fileManager менеджер файлов для работы с XML
+     * @param fileManager менеджер для сохранения и загрузки коллекции
      */
-    public CollectionManager(FileManager fileManager) { // конструктор класса CollectionManager
+    public CollectionManager(FileManager fileManager) { // конструктор класса
         this.collection = new Stack<>(); // инициализируем пустой стек
-        this.initializationDate = LocalDate.now(); // устанавливаем текущую дату как дату инициализации
-        this.fileManager = fileManager; // сохраняем ссылку на FileManager
-        loadCollection(); // загружаем коллекцию из файла при создании объекта
+        this.initializationDate = LocalDate.now(); // запоминаем текущую дату как дату инициализации
+        this.fileManager = fileManager; // сохраняем ссылку на файловый менеджер
+        loadCollection(); // пытаемся загрузить существующую коллекцию из файла
     }
 
     /**
-     * Загружает коллекцию из файла
-     * При успешной загрузке обновляет генератор ID
-     * При ошибке создает пустую коллекцию
+     * загружает коллекцию из файла через файловый менеджер
+     * в случае ошибки создает пустую коллекцию
+     * обновляет счетчик последнего id на основе загруженных данных
      */
-    private void loadCollection() { // приватный метод загрузки коллекции из файла
-        try { // блок try для обработки исключений при загрузке
-            collection = fileManager.loadCollection(); // загружаем коллекцию через FileManager
-            IdGenerator.updateLastId(collection); // обновляем генератор ID на основе загруженной коллекции
-            System.out.println("Загружено " + collection.size() + " элементов"); // выводим информацию о количестве загруженных элементов
-        } catch (Exception e) { // ловим любые исключения при загрузке
+    private void loadCollection() { // приватный метод загрузки коллекции
+        try { // начало блока перехвата исключений
+            collection = fileManager.loadCollection(); // загружаем коллекцию из файла
+            IdGenerator.updateLastId(collection); // синхронизируем генератор id с загруженными данными
+            System.out.println("Загружено " + collection.size() + " элементов"); // выводим сообщение об успешной загрузке
+        } catch (Exception e) { // обрабатываем любые исключения при загрузке
             System.err.println("Ошибка загрузки коллекции: " + e.getMessage()); // выводим сообщение об ошибке
-            System.err.println("Будет создана пустая коллекция"); // информируем о создании пустой коллекции
-            collection = new Stack<>(); // создаем пустую коллекцию в случае ошибки
-        }
+            System.err.println("Будет создана пустая коллекция"); // сообщаем о создании пустой коллекции
+            collection = new Stack<>(); // создаем новый пустой стек
+        } // конец блока try-catch
     }
 
     /**
-     * Возвращает информацию о коллекции
+     * возвращает информацию о коллекции
+     * включает тип коллекции, дату инициализации и количество элементов
      * 
-     * @return строка, содержащая тип коллекции, дату инициализации и количество элементов
+     * @return строка с информацией о состоянии коллекции
      */
-    public String getInfo() { // метод для получения информации о коллекции
-        return String.format("Тип коллекции: %s\nДата инициализации: %s\nКоличество элементов: %d",
-                collection.getClass().getName(), initializationDate, collection.size()); // форматированный вывод информации
+    public String getInfo() { // метод получения информации о коллекции
+        return String.format("Тип коллекции: %s\nДата инициализации: %s\nКоличество элементов: %d", // форматируем строку с переносами
+                collection.getClass().getName(), initializationDate, collection.size()); // подставляем тип, дату и размер
     }
 
     /**
-     * Возвращает отсортированную коллекцию (использует Stream API)
-     */
-    public List<Vehicle> getAllSorted() { // метод получения всех элементов коллекции в отсортированном порядке
-        return collection.stream() // преобразование коллекции в stream для функциональной обработки
-                .sorted() // сортировка элементов в естественном порядке (с использованием compareTo из Comparable)
-                .collect(Collectors.toList()); // сборка отсортированных элементов в новый список и возврат
-    }
-
-    /**
-     * Выводит все элементы коллекции в стандартный поток вывода
-     * Если коллекция пуста, выводит соответствующее сообщение
-     */
-    public void showAll() { // метод для вывода всех элементов
-        if (collection.isEmpty()) { // проверяем, пуста ли коллекция
-            System.out.println("Коллекция пуста"); // выводим сообщение о пустой коллекции
-            return; // выходим из метода
-        }
-        collection.forEach(System.out::println); // выводим каждый элемент коллекции через ссылку на метод
-    }
-
-    /**
-     * Добавляет новый элемент в коллекцию
-     * Автоматически генерирует ID и устанавливает текущую дату создания
+     * возвращает отсортированный список всех элементов коллекции
+     * используется естественный порядок сортировки (сравнение по умолчанию)
      * 
-     * @param vehicle объект Vehicle для добавления (без ID, генерируется автоматически)
+     * @return новый список с отсортированными элементами
+     */
+    public List<Vehicle> getAllSorted() { // метод получения всех отсортированных элементов
+        return collection.stream() // создаем поток из коллекции
+                .sorted() // сортируем элементы в естественном порядке
+                .collect(Collectors.toList()); // собираем результат в новый список
+    }
+
+    /**
+     * добавляет новый элемент в коллекцию
+     * автоматически генерирует уникальный id и устанавливает текущую дату создания
+     * 
+     * @param vehicle добавляемое транспортное средство
      */
     public void add(Vehicle vehicle) { // метод добавления нового элемента
-        vehicle.setId(IdGenerator.generateId(collection)); // генерируем новый ID на основе существующей коллекции
-        vehicle.setCreationDate(LocalDate.now()); // устанавливаем текущую дату как дату создания
-        collection.push(vehicle); // добавляем элемент в стек
-        System.out.println("Элемент добавлен с ID: " + vehicle.getId()); // выводим подтверждение с ID добавленного элемента
+        vehicle.setId(IdGenerator.generateId(collection)); // генерируем уникальный id для элемента
+        vehicle.setCreationDate(LocalDate.now()); // устанавливаем текущую дату создания
+        collection.push(vehicle); // помещаем элемент в стек
+        System.out.println("Элемент добавлен с ID: " + vehicle.getId()); // выводим сообщение с id добавленного элемента
     }
 
     /**
-     * Обновляет элемент по ID
-     * Заменяет существующий элемент новым, сохраняя оригинальный ID и дату создания
+     * обновляет существующий элемент по его идентификатору
+     * сохраняет оригинальную дату создания, обновляя остальные поля
      * 
-     * @param id идентификатор элемента для обновления
-     * @param newVehicle новый объект Vehicle с обновленными данными
-     * @return true, если элемент с указанным ID найден и обновлен; false в противном случае
+     * @param id идентификатор обновляемого элемента
+     * @param newVehicle новый объект с обновленными данными
+     * @return true если элемент найден и обновлен, false если элемент не существует
      */
-    public boolean updateById(int id, Vehicle newVehicle) { // метод обновления элемента по ID
-        for (int i = 0; i < collection.size(); i++) { // проходим по всем индексам коллекции
-            if (collection.get(i).getId() == id) { // если нашли элемент с нужным ID
-                newVehicle.setId(id); // устанавливаем тот же ID для нового элемента
-                newVehicle.setCreationDate(collection.get(i).getCreationDate()); // сохраняем оригинальную дату создания
-                collection.set(i, newVehicle); // заменяем элемент на новую версию
-                return true; // возвращаем true -- обновление успешно
-            }
-        }
-        return false; // возвращаем false -- элемент с таким ID не найден
+    public boolean updateById(int id, Vehicle newVehicle) { // метод обновления элемента по id
+        Optional<Vehicle> optional = collection.stream() // создаем поток из коллекции
+                .filter(v -> v.getId() == id) // фильтруем элементы с нужным id
+                .findFirst(); // находим первый подходящий элемент
+        
+        if (optional.isPresent()) { // проверяем, найден ли элемент
+            Vehicle old = optional.get(); // получаем существующий элемент
+            int index = collection.indexOf(old); // находим его индекс в стеке
+            newVehicle.setId(id); // устанавливаем старый id в новый элемент
+            newVehicle.setCreationDate(old.getCreationDate()); // сохраняем оригинальную дату создания
+            collection.set(index, newVehicle); // заменяем элемент в стеке по индексу
+            return true; // возвращаем успех операции
+        } // конец проверки наличия элемента
+        return false; // возвращаем неудачу - элемент не найден
     }
 
     /**
-     * Удаляет элемент по ID
+     * удаляет элемент из коллекции по его идентификатору
      * 
-     * @param id идентификатор элемента для удаления
-     * @return true, если элемент был удален; false, если элемент с указанным ID не найден
+     * @param id идентификатор удаляемого элемента
+     * @return true если элемент удален, false если элемент не найден
      */
-    public boolean removeById(int id) { // метод удаления элемента по ID
-        return collection.removeIf(v -> v.getId() == id); // удаляем элементы, удовлетворяющие условию (ID совпадает), возвращаем true если что-то удалено
+    public boolean removeById(int id) { // метод удаления элемента по id
+        return collection.removeIf(v -> v.getId() == id); // удаляем все элементы с указанным id и возвращаем результат
     }
 
     /**
-     * Очищает коллекцию
-     * Удаляет все элементы из коллекции
+     * полностью очищает коллекцию
+     * удаляет все элементы без возможности восстановления
      */
     public void clear() { // метод очистки коллекции
         collection.clear(); // удаляем все элементы из стека
     }
 
     /**
-     * Сохраняет коллекцию в файл
+     * сохраняет текущую коллекцию в файл
+     * использует привязанный файловый менеджер
      * 
-     * @throws Exception если произошла ошибка при сохранении в файл
+     * @throws exception если возникает ошибка при сохранении в файл
      */
     public void save() throws Exception { // метод сохранения коллекции в файл
-        fileManager.saveCollection(collection); // сохраняем коллекцию через FileManager
-        System.out.println("Коллекция сохранена в файл"); // выводим подтверждение сохранения
+        fileManager.saveCollection(collection); // передаем коллекцию файловому менеджеру для сохранения
+        System.out.println("Коллекция сохранена в файл"); // выводим сообщение об успешном сохранении
     }
 
     /**
-     * Удаляет последний элемент коллекции
-     * Если коллекция пуста, выводит соответствующее сообщение
+     * удаляет последний элемент из коллекции (верхушку стека)
+     * если коллекция пуста, ничего не делает
      */
     public void removeLast() { // метод удаления последнего элемента
-        if (!collection.isEmpty()) { // проверяем, что коллекция не пуста
-            collection.pop(); // удаляем верхний элемент стека (последний добавленный)
-            System.out.println("Последний элемент удален"); // выводим подтверждение
-        } else { // если коллекция пуста
-            System.out.println("Коллекция пуста"); // выводим сообщение
-        }
+        if (!collection.isEmpty()) { // проверяем, не пуста ли коллекция
+            collection.pop(); // извлекаем и удаляем верхний элемент стека
+            System.out.println("Последний элемент удален"); // выводим сообщение об удалении
+        } // конец проверки на пустоту
     }
 
     /**
-     * Удаляет все элементы, меньшие заданного.
-     * Сравнение производится с использованием метода {@link Vehicle#compareTo(Vehicle)}
+     * удаляет все элементы, которые меньше указанного транспортного средства
+     * сравнение выполняется через метод compareto
      * 
-     * @param vehicle эталонный объект для сравнения
-     * @return количество удалённых элементов
+     * @param vehicle эталонное транспортное средство для сравнения
+     * @return количество удаленных элементов
      */
-    public int removeLower(Vehicle vehicle) { // метод удаления элементов, меньших заданного, возвращает количество удалённых
-        int initialSize = collection.size(); // сохранение исходного размера коллекции до удаления
-        collection.removeIf(v -> v.compareTo(vehicle) < 0); // удаление элементов, у которых compareTo вернул отрицательное значение (меньше эталона)
-        return initialSize - collection.size(); // возврат разницы между исходным и текущим размером (количество удалённых)
+    public int removeLower(Vehicle vehicle) { // метод удаления элементов, меньших чем заданный
+        int initialSize = collection.size(); // запоминаем исходный размер коллекции
+        collection.removeIf(v -> v.compareTo(vehicle) < 0); // удаляем элементы, которые меньше заданного
+        return initialSize - collection.size(); // возвращаем разницу размеров (количество удаленных)
     }
 
     /**
-     * Сортирует коллекцию в естественном порядке (по имени)
-     * Использует {@link Collections#sort(List)}.
+     * сортирует коллекцию в естественном порядке
+     * использует stream api для сортировки и полностью обновляет стек
      */
     public void sort() { // метод сортировки коллекции
-        Collections.sort(collection); // сортируем коллекцию с использованием естественного порядка (по имени)
-        System.out.println("Коллекция отсортирована"); // выводим подтверждение сортировки
+        List<Vehicle> sortedList = collection.stream() // создаем поток из коллекции
+                .sorted() // сортируем элементы в естественном порядке
+                .collect(Collectors.toList()); // собираем отсортированные элементы в список
+        collection.clear(); // очищаем исходный стек
+        collection.addAll(sortedList); // добавляем все отсортированные элементы обратно
+        System.out.println("Коллекция отсортирована"); // выводим сообщение о завершении сортировки
     }
 
     /**
-     * Возвращает сумму значений capacity всех элементов коллекции
+     * вычисляет сумму вместимости всех транспортных средств в коллекции
      * 
-     * @return сумма грузоподъемностей всех транспортных средств
+     * @return общая сумма всех значений capacity
      */
-    public double getSumOfCapacity() { // метод для получения суммы грузоподъемностей
+    public double getSumOfCapacity() { // метод получения суммы вместимостей
         return collection.stream() // создаем поток из коллекции
-                .mapToDouble(Vehicle::getCapacity) // преобразуем поток Vehicle в поток double (значения capacity)
-                .sum(); // суммируем все значения
+                .mapToDouble(Vehicle::getCapacity) // преобразуем каждый элемент в его вместимость
+                .sum(); // вычисляем сумму всех значений
     }
 
     /**
-     * Возвращает список элементов с заданным значением capacity
-     * Сравнение производится с учетом погрешности double
+     * возвращает список транспортных средств с указанной вместимостью
+     * сравнение выполняется с учетом погрешности для чисел с плавающей точкой
      * 
-     * @param capacity значение грузоподъемности для фильтрации
-     * @return список Vehicle, у которых capacity равен заданному
+     * @param capacity значение вместимости для фильтрации
+     * @return список транспортных средств с заданной вместимостью
      */
-    public List<Vehicle> filterByCapacity(double capacity) { // метод фильтрации по грузоподъемности
+    public List<Vehicle> filterByCapacity(double capacity) { // метод фильтрации по вместимости
         return collection.stream() // создаем поток из коллекции
-                .filter(v -> Math.abs(v.getCapacity() - capacity) < 0.0001) // оставляем элементы с capacity, равным заданному (с учетом погрешности double)
+                .filter(v -> Math.abs(v.getCapacity() - capacity) < 0.0001) // фильтруем с погрешностью 0.0001
                 .collect(Collectors.toList()); // собираем результат в список
     }
 
     /**
-     * Возвращает список элементов, тип которых меньше заданного
-     * Сравнение производится по порядковому номеру в перечислении {@link VehicleType}
+     * возвращает список транспортных средств, тип которых меньше указанного
+     * сравнение выполняется по порядковому номеру типа в перечислении
      * 
      * @param type эталонный тип для сравнения
-     * @return список Vehicle, у которых тип меньше заданного
+     * @return список транспортных средств с меньшим типом
      */
-    public List<Vehicle> filterLessThanType(VehicleType type) { // метод фильтрации по типу (меньше заданного)
+    public List<Vehicle> filterLessThanType(VehicleType type) { // метод фильтрации по типу (меньше чем)
         return collection.stream() // создаем поток из коллекции
-                .filter(v -> v.getType().ordinal() < type.ordinal()) // оставляем элементы, у которых порядковый номер типа меньше заданного
+                .filter(v -> v.getType().ordinal() < type.ordinal()) // фильтруем, где порядковый номер типа меньше
                 .collect(Collectors.toList()); // собираем результат в список
     }
 
     /**
-     * Проверяет существование элемента с заданным ID
+     * проверяет существование элемента с указанным идентификатором
      * 
-     * @param id идентификатор для проверки
-     * @return true, если элемент с указанным ID существует в коллекции; false в противном случае
+     * @param id проверяемый идентификатор
+     * @return true если элемент с таким id существует, false если нет
      */
-    public boolean containsId(int id) { // метод проверки существования ID
-        return collection.stream().anyMatch(v -> v.getId() == id); // создаем поток из коллекции и возвращаем true, если хотя бы один элемент имеет заданный ID
+    public boolean containsId(int id) { // метод проверки наличия id в коллекции
+        return collection.stream().anyMatch(v -> v.getId() == id); // проверяем, есть ли хоть один элемент с таким id
     }
 
     /**
-     * Проверяет, пуста ли коллекция
+     * проверяет, пуста ли коллекция
      * 
-     * @return {@code true} если коллекция пуста, {@code false} в противном случае
-     * @see java.util.Collection#isEmpty()
+     * @return true если коллекция не содержит элементов, false если есть элементы
      */
-    public boolean isEmpty() {
-        return collection.isEmpty();
+    public boolean isEmpty() { // метод проверки на пустоту
+        return collection.isEmpty(); // возвращаем результат проверки пустоты стека
+    }
+    
+    /**
+     * возвращает количество элементов в коллекции
+     * 
+     * @return размер коллекции
+     */
+    public int size() { // метод получения размера коллекции
+        return collection.size(); // возвращаем количество элементов в стеке
     }
 }

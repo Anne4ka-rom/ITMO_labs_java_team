@@ -1,142 +1,145 @@
-package server; // объявление пакета server, куда входят все классы серверной части
+package server; // класс находится в пакете server
 
 import server.collection.CollectionManager; // импорт менеджера коллекции для управления данными
-import server.file.FileManager; // импорт менеджера файлов для работы с xml
+import server.file.FileManager; // импорт менеджера для работы с файлом коллекции
 
 import java.io.IOException; // импорт исключения для ошибок ввода-вывода
-import java.net.InetSocketAddress; // импорт класса для адреса сокета с портом
-import java.net.SocketAddress; // импорт абстрактного адреса сокета
-import java.nio.channels.ServerSocketChannel; // импорт неблокирующего канала серверного сокета
-import java.nio.channels.SocketChannel; // импорт неблокирующего канала клиентского сокета
+import java.net.InetSocketAddress; // импорт класса для создания адреса сокета
+import java.nio.channels.*; // импорт всех классов для неблокирующего ввода-вывода
+import java.util.Iterator; // импорт итератора для обхода коллекций
+import java.util.Scanner; // импорт сканера для чтения ввода с консоли
 
-/**
- * Главный класс серверного приложения, реализующего неблокирующий прием подключений
- * 
- * Сервер работает на фиксированном порту (1067) и использует неблокирующий режим дляя принятия входящих соединений
- * Каждый клиент обрабатывается в отдельном потоке
- * 
- * @author Anni
- * @version 1.0
- * @see ServerSocketChannel
- * @see ConnectionHandler
- */
-public class Server { // объявление класса с именем Server
-    private static final int PORT = 1067;  // статическая константа номера порта для сервера
-    private static final int ACCEPT_TIMEOUT_MS = 100; // таймаут ожидания подключения (в миллисекундах)
-    
-    private ServerSocketChannel serverSocketChannel; // канал серверного сокета в неблокирующем режиме
-    private CollectionManager collectionManager; // менеджер для управления коллекцией
-    private CommandProcessor commandProcessor; // процессор для обработки команд клиентов
-    private volatile boolean running; // флаг работы сервера (volatile для потокобезопасности)
-    
-    /**
-     * Точка входа в серверное приложение
-     * 
-     * Ожидает один аргумент командной строки - путь к XML файлу с данными коллекции
-     * При отсутствии аргумента выводит сообщение об ошибке и завершает работу
-     * 
-     * @param args аргументы командной строки, где args[0] - путь к файлу с данными
-     * @throws IllegalArgumentException если аргументы не переданы
-     */
-    public static void main(String[] args) { // точка входа в программу (с этого метода начинается выполнение любого java-приложения)
-        if (args.length == 0) { // проверка, передан ли аргумент с именем файла
-            System.err.println("Ошибка: не указано имя файла с данными"); // вывод ошибки в stderr
-            System.err.println("Использование: java server.Server <filename>"); // подсказка по использованию
-            System.exit(1); // аварийное завершение программы с кодом 1
-        }
+public class Server { // объявляет главный класс сервера
+    private static final int PORT = 1067; // фиксированный порт для прослушивания подключений
+    private static CollectionManager collectionManager; // менеджер коллекции для хранения и обработки данных
+    private static volatile boolean isRunning = true; // флаг работы сервера (volatile для видимости между потоками)
+
+    public static void main(String[] args) throws IOException { // главный метод, точка входа в программу
+        String filename = "vehicles.xml"; // имя файла коллекции по умолчанию
+        if (args.length > 0) filename = args[0]; // если передан аргумент командной строки, используем его как имя файла
         
-        Server server = new Server(); // создание экземпляра сервера
-        server.start(args[0]); // запуск сервера с переданным именем файла
-    }
-    
-    /**
-     * Запускает сервер с указанным файлом данных
-     * 
-     * Метод выполняет инициализацию всех компонентов сервера:
-     * - Создает {@link FileManager} для работы с XML файлом
-     * - Создает {@link CollectionManager} для управления коллекцией
-     * - Создает {@link CommandProcessor} для обработки команд
-     * - Настраивает {@link ServerSocketChannel} в неблокирующем режиме
-     * - Запускает основной цикл приема подключений
-     * 
-     * Основной цикл работает до тех пор, пока флаг {@code running} истинен
-     * При каждом проходе цикла выполняется неблокирующий вызов {@code accept()}
-     * При появлении нового клиента создается отдельный поток с {@link ConnectionHandler}
-     * 
-     * @param filename путь к XML файлу, содержащему начальные данные коллекции
-     * @throws IOException если произошла ошибка при открытии или привязке сокета
-     * @see #stop()
-     */
-    public void start(String filename) { // запускает сервер с указанным файлом данных
-        try { // начало блока перехвата исключений
-            // инициализация менеджеров
-            FileManager fileManager = new FileManager(filename); // создание менеджера файлов с путём к xml
-            collectionManager = new CollectionManager(fileManager); // создание менеджера коллекции с файловым менеджером
-            commandProcessor = new CommandProcessor(collectionManager); // создание процессора команд с менеджером коллекции
-            
-            // настройка серверного канала в неблокирующем режиме
-            serverSocketChannel = ServerSocketChannel.open(); // открытие канала серверного сокета
-            serverSocketChannel.bind(new InetSocketAddress(PORT)); // привязка к локальному адресу с указанным портом
-            serverSocketChannel.configureBlocking(false); // установка неблокирующего режима
-            
-            running = true; // установка флага работы сервера
-            System.out.println("Сервер успешно запущен на порту " + PORT); // вывод сообщения о запуске
-            System.out.println("Режим: неблокирующий"); // информирование о режиме работы
-            System.out.println("Файл данных: " + filename); // вывод пути к файлу данных
-            System.out.println("Ожидание подключений..."); // ожидание клиентов
-            
-            // основной цикл сервера
-            while (running) { // цикл продолжается, пока флаг running истинен
-                SocketChannel clientChannel = serverSocketChannel.accept(); // попытка принять подключение (возвращает null если нет подключений)
+        FileManager fileManager = new FileManager(filename); // создаем менеджер для работы с файлом
+        collectionManager = new CollectionManager(fileManager); // создаем менеджер коллекции с привязкой к файлу
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> { // добавляем хук для завершения виртуальной машины
+            try { // начало блока перехвата исключений
+                collectionManager.save(); // сохраняем коллекцию при завершении работы
+                System.out.println("Коллекция сохранена в файл при завершении работы сервера"); // выводим сообщение о сохранении
+            } catch (Exception e) { // обрабатываем ошибки при сохранении
+                System.err.println("Ошибка сохранения коллекции: " + e.getMessage()); // выводим сообщение об ошибке
+            }
+        }));
+
+        Thread serverConsoleThread = new Thread(() -> { // создаем поток для обработки консольных команд сервера
+            Scanner scanner = new Scanner(System.in); // создаем сканер для чтения из стандартного ввода
+            while (isRunning) { // цикл, пока сервер работает
+                String input = scanner.nextLine().trim(); // читаем строку из консоли и удаляем пробелы по краям
+                if (input.isEmpty()) continue; // пропускаем пустые строки
                 
-                if (clientChannel != null) { // если есть новый клиент
-                    // новое подключение
-                    SocketAddress clientAddress = clientChannel.getRemoteAddress(); // получение адреса удалённого клиента
-                    System.out.println("Новое подключение от: " + clientAddress); // вывод информации о подключении
-                    
-                    // обработка клиента в отдельном потоке
-                    ConnectionHandler handler = new ConnectionHandler( // создание обработчика подключения
-                        clientChannel.socket(), // преобразование SocketChannel в обычный Socket
-                        commandProcessor // передача процессора команд
-                    );
-                    new Thread(handler).start(); // запуск обработчика в новом потоке
-                }
-                
-                // небольшая задержка для снижения нагрузки на cpu
-                try { // начало блока перехвата исключений
-                    Thread.sleep(ACCEPT_TIMEOUT_MS); // приостановка цикла на заданное время
-                } catch (InterruptedException e) { // обработка прерывания потока
-                    Thread.currentThread().interrupt(); // восстановление статуса прерывания
-                    break; // выход из цикла
+                if (input.equalsIgnoreCase("save")) { // проверяем команду save (без учета регистра)
+                    try { // начало блока перехвата исключений
+                        collectionManager.save(); // сохраняем коллекцию
+                        System.out.println("Коллекция сохранена в файл по команде сервера"); // выводим сообщение об успехе
+                    } catch (Exception e) { // обрабатываем ошибки при сохранении
+                        System.err.println("Ошибка сохранения: " + e.getMessage()); // выводим сообщение об ошибке
+                    } // конец блока catch
+                } else if (input.equalsIgnoreCase("info")) { // проверяем команду info
+                    System.out.println(collectionManager.getInfo()); // выводим информацию о коллекции
+                } else if (input.equalsIgnoreCase("exit") || input.equalsIgnoreCase("quit")) { // проверяем команды выхода
+                    System.out.println("Завершение работы сервера..."); // выводим сообщение о завершении
+                    isRunning = false; // устанавливаем флаг остановки
+                    System.exit(0); // принудительно завершаем виртуальную машину
+                } else { // если команда не распознана
+                    System.out.println("Неизвестная серверная команда. Доступные: save, info, exit"); // выводим подсказку
                 }
             }
-            
-        } catch (IOException e) { // обработка ошибок ввода-вывода
-            System.err.println("Критическая ошибка сервера: " + e.getMessage()); // вывод сообщения об ошибке
-            e.printStackTrace(); // печать стека вызовов для отладки
-        } finally { // блок кода, который выполнится обязательно (независимо от того, произошла ошибка в блоке try или нет)
-            stop(); // гарантированная остановка сервера при любом исходе
+            scanner.close(); // закрываем сканер при выходе из цикла
+        });
+        serverConsoleThread.setDaemon(true); // устанавливаем поток как демон (будет завершен при выходе из основного потока)
+        serverConsoleThread.start(); // запускаем поток обработки консольных команд
+
+        Selector selector = Selector.open(); // открываем мультиплексор для неблокирующего ввода-вывода
+        ServerSocketChannel serverChannel = ServerSocketChannel.open(); // открываем серверный канал
+        serverChannel.bind(new InetSocketAddress(PORT)); // привязываем канал к порту
+        serverChannel.configureBlocking(false); // переводим канал в неблокирующий режим
+        serverChannel.register(selector, SelectionKey.OP_ACCEPT); // регистрируем канал с интересом к принятию подключений
+
+        System.out.println("Сервер запущен на порту " + PORT); // выводим информацию о запуске
+        System.out.println("Файл коллекции: " + filename); // выводим имя файла коллекции
+        System.out.println("Режим: неблокирующий (Selector), однопоточный"); // выводим информацию о режиме работы
+        System.out.println("Серверные команды: save, info, exit\n"); // выводим список доступных команд сервера
+
+        CommandProcessor processor = new CommandProcessor(collectionManager); // создаем процессор команд с менеджером коллекции
+
+        while (isRunning) { // основной цикл сервера
+            selector.select(); // блокируемся до появления событий на зарегистрированных каналах
+            Iterator<SelectionKey> keys = selector.selectedKeys().iterator(); // получаем итератор по выбранным ключам
+
+            while (keys.hasNext()) { // обходим все ключи с событиями
+                SelectionKey key = keys.next(); // получаем следующий ключ
+                keys.remove(); // удаляем ключ из выбранного набора (чтобы не обработать повторно)
+
+                if (!key.isValid()) continue; // пропускаем невалидные ключи
+
+                if (key.isAcceptable()) { // проверяем событие принятия подключения
+                    ConnectionAcceptor.accept(key, selector); // принимаем новое подключение
+                } else if (key.isReadable()) { // проверяем событие готовности к чтению
+                    ClientHandler handler = (ClientHandler) key.attachment(); // получаем обработчик клиента из ключа
+                    try { // начало блока перехвата исключений
+                        RequestReader.readRequest(handler); // читаем запрос от клиента
+                        if (handler.hasCompleteRequest() && !handler.isProcessing()) { // проверяем наличие полного запроса и отсутствие обработки
+                            handler.setProcessing(true); // устанавливаем флаг обработки
+                            key.interestOps(SelectionKey.OP_WRITE); // меняем интерес на запись (отправка ответа)
+                        } // конец проверки полного запроса
+                    } catch (IOException e) { // обрабатываем ошибки чтения
+                        System.err.println("Ошибка чтения от клиента: " + e.getMessage()); // выводим сообщение об ошибке
+                        closeConnection(key, handler); // закрываем соединение с клиентом
+                    }
+                } else if (key.isWritable()) { // проверяем событие готовности к записи
+                    ClientHandler handler = (ClientHandler) key.attachment(); // получаем обработчик клиента из ключа
+                    
+                    if (handler.hasCompleteRequest() && !handler.hasResponseToSend()) { // проверяем наличие запроса и отсутствие ответа
+                        processor.processRequest(handler); // обрабатываем запрос и формируем ответ
+                    }
+                    
+                    if (handler.hasResponseToSend()) { // проверяем, есть ли ответ для отправки
+                        try { // начало блока перехвата исключений
+                            boolean fullySent = ResponseSender.sendResponse(handler); // отправляем ответ клиенту
+                            if (fullySent) { // если ответ полностью отправлен
+                                handler.setProcessing(false); // сбрасываем флаг обработки
+                                handler.clearCompleteRequest(); // очищаем запрос
+                                key.interestOps(SelectionKey.OP_READ); // меняем интерес обратно на чтение
+                            }
+                        } catch (IOException e) { // обрабатываем ошибки отправки
+                            System.err.println("Ошибка отправки ответа: " + e.getMessage()); // выводим сообщение об ошибке
+                            closeConnection(key, handler); // закрываем соединение с клиентом
+                        }
+                    } else if (!handler.hasCompleteRequest()) { // если нет ни запроса, ни ответа
+                        key.interestOps(SelectionKey.OP_READ); // возвращаем интерес к чтению
+                    }
+                }
+            }
         }
     }
     
     /**
-     * Останавливает работу сервера
+     * закрывает соединение с клиентом и освобождает ресурсы
+     * отменяет ключ, закрывает канал и очищает обработчик
      * 
-     * Устанавливает флаг {@code running} в false, что приводит к завершению
-     * основного цикла в методе {@link #start(String)}. Закрывает канал
-     * серверного сокета, освобождая занятый порт
-     * 
-     * Метод безопасно обрабатывает возможные исключения при закрытии канала
+     * @param key ключ селектора для данного соединения
+     * @param handler обработчик клиента
      */
-    public void stop() { // объявление метода stop
-        running = false; // сброс флага работы для выхода из основного цикла
-        try { // начало блока перехвата исключений
-            if (serverSocketChannel != null && serverSocketChannel.isOpen()) { // проверка существования и открытости канала
-                serverSocketChannel.close(); // закрытие канала серверного сокета
-                System.out.println("Сервер остановлен"); // подтверждение остановки
+    private static void closeConnection(SelectionKey key, ClientHandler handler) { // метод закрытия соединения
+        if (key != null) key.cancel(); // отменяем ключ селектора если он существует
+        if (handler != null) { // проверяем существование обработчика
+            try { // начало блока перехвата исключений
+                if (handler.getChannel() != null && handler.getChannel().isOpen()) { // проверяем, что канал существует и открыт
+                    handler.getChannel().close(); // закрываем канал
+                }
+            } catch (IOException e) { // обрабатываем ошибки закрытия
+                System.err.println("Ошибка при закрытии канала: " + e.getMessage()); // выводим сообщение об ошибке
             }
-        } catch (IOException e) { // обработка ошибки при закрытии
-            System.err.println("Ошибка при остановке сервера: " + e.getMessage()); // вывод сообщения об ошибке
+            handler.close(); // закрываем обработчик и очищаем его данные
         }
     }
 }
