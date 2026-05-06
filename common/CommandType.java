@@ -22,6 +22,7 @@ public enum CommandType {
     SUM_OF_CAPACITY("sum_of_capacity", "вывести сумму грузоподъемностей"),
     FILTER_BY_CAPACITY("filter_by_capacity", "вывести элементы с заданной грузоподъемностью"),
     FILTER_LESS_THAN_TYPE("filter_less_than_type", "вывести элементы, тип которых меньше заданного"),
+    EXECUTE_SCRIPT("execute_script", "выполнить скрипт из файла"),
     EXIT("exit", "завершить работу клиента"),
     SAVE("save", "сохранить коллекцию (только сервер)");
 
