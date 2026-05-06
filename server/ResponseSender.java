@@ -1,79 +1,67 @@
-package server; // объявление пакета server, где находится класс для отправки ответов клиенту
+package server; // класс находится в пакете server
 
-import common.Response; // импорт класса Response из пакета common (используется и клиентом, и сервером)
+import common.Response; // импорт класса ответа из общей модели
 
-import java.io.IOException; // импорт исключения для ошибок ввода-вывода
-import java.io.ObjectOutputStream; // импорт класса для записи сериализованных объектов в поток
-import java.net.Socket; // импорт класса сокета для сетевого соединения
+import java.io.*; // импорт всех классов для работы с потоками ввода-вывода
+import java.nio.ByteBuffer; // импорт для работы с буфером байтов в nio
+import java.nio.channels.SocketChannel; // импорт канала для tcp-соединения
 
-/**
- * Модуль отправки ответа клиенту
- * 
- * Отвечает за сериализацию объекта Response в поток сокета
- * Использует {@link ObjectOutputStream} для записи сериализованных объектов, которые будут отправлены клиенту по сети
- * 
- * Класс следует паттерну "декоратор", оборачивая выходной поток сокета в поток для записи объектов
- * Каждый экземпляр ResponseSender связан с одним конкретным клиентским сокетом
- * 
- * Клиент должен первым создавать {@link java.io.ObjectOutputStream}, а сервер - {@link java.io.ObjectInputStream} для чтения
- * ResponseSender создаётся после того, как клиент создал свои потоки
- * 
- * @author Anni
- * @version 1.0
- * @see Response
- * @see ObjectOutputStream
- * @see server.RequestReader
- */
-public class ResponseSender { // объявление класса с именем ResponseSender
-    private final ObjectOutputStream oos; // финальное поле для записи сериализованных объектов (инициализируется в конструкторе)
+public class ResponseSender { // объявляет класс для отправки ответов клиентам
     
     /**
-     * Конструктор - создает ObjectOutputStream из сокета
+     * отправляет ответ клиенту с использованием неблокирующего ввода-вывода
+     * автоматически разбивает большие ответы на части и управляет буферизацией
      * 
-     * Инициализирует внутренний поток для записи сериализованных объектов на основе выходного потока переданного сокета
-     * 
-     * После создания ObjectOutputStream автоматически записывает заголовок в поток, в который будут отправляться ответы
-     * Клиент должен прочитать этот заголовок своим ObjectInputStream
-     * 
-     * @param socket сокет подключенного клиента
-     * @throws IOException если произошла ошибка при создании ObjectOutputStream
+     * @param handler обработчик клиента, содержащий ответ для отправки
+     * @return true если ответ полностью отправлен, false если отправка не завершена
+     * @throws ioexception если произошла ошибка при записи в канал
      */
-    public ResponseSender(Socket socket) throws IOException { // конструктор класса ResponseSender, принимает сокет клиента и создаёт ObjectOutputStream для записи сериализованных объектов
-        this.oos = new ObjectOutputStream(socket.getOutputStream()); // получение выходного потока из сокета и обёртка в objectoutputstream
-    }
-    
-    /**
-     * Сериализует и отправляет ответ клиенту
-     * 
-     * Метод преобразует объект {@link Response} в последовательность байт (сериализация) и записывает её в выходной поток сокета
-     * После записи вызывает {@link ObjectOutputStream#flush()}, чтобы немедленно отправить все данные клиенту
-     * 
-     * Метод не блокируется надолго, так как запись в сетевой поток обычно происходит быстро, но при переполнении буфера может ждать
-     * 
-     * @param response объект Response для отправки клиенту (не должен быть null)
-     * @throws IOException если произошла ошибка при записи в поток
-     * @see Response
-     * @see ObjectOutputStream#writeObject(Object)
-     * @see ObjectOutputStream#flush()
-     */
-    public void sendResponse(Response response) throws IOException { // метод для сериализации и отправки ответа клиенту, принимает объект Response
-        oos.writeObject(response); // запись сериализованного объекта response в выходной поток
-        oos.flush(); // принудительная отправка всех буферизованных данных клиенту (очистка буфера)
-    }
-    
-    /**
-     * Закрывает поток вывода
-     * 
-     * Освобождает системные ресурсы, связанные с ObjectOutputStream
-     * После вызова этого метода дальнейшая отправка ответов станет невозможной
-     * 
-     * Метод безопасно обрабатывает ситуацию, когда поток уже был закрыт или не был инициализирован
-     * 
-     * @throws IOException если произошла ошибка при закрытии потока
-     */
-    public void close() throws IOException { // метод для закрытия потока вывода, освобождает системные ресурсы
-        if (oos != null) { // проверка, что поток существует (не равен null)
-            oos.close(); // закрытие objectoutputstream (освобождает системные ресурсы)
+    public static boolean sendResponse(ClientHandler handler) throws IOException { // статический метод отправки ответа
+        if (!handler.hasResponseToSend()) { // проверяем, есть ли ответ для отправки
+            return true; // возвращаем true, так как ничего отправлять не нужно
         }
+        
+        ByteBuffer buffer = handler.getOutgoingBuffer(); // получаем текущий исходящий буфер из обработчика
+        
+        if (buffer == null) { // проверяем, нужно ли создать новый буфер
+            Object response = handler.getResponseToSend(); // получаем объект ответа из обработчика
+            byte[] data = serializeWithLength(response); // сериализуем ответ с добавлением длины в начало
+            buffer = ByteBuffer.wrap(data); // оборачиваем массив байтов в буфер
+            handler.setOutgoingBuffer(buffer); // сохраняем буфер в обработчике
+        }
+        
+        SocketChannel channel = handler.getChannel(); // получаем канал клиента
+        channel.write(buffer); // записываем данные из буфера в канал
+        
+        if (!buffer.hasRemaining()) { // проверяем, все ли данные были отправлены
+            handler.setOutgoingBuffer(null); // очищаем буфер в обработчике
+            handler.clearResponseToSend(); // удаляем отправленный ответ из обработчика
+            return true; // возвращаем true - отправка завершена
+        }
+        
+        return false; // возвращаем false - отправка не завершена, данных больше не поместилось
+    }
+    
+    /**
+     * сериализует объект в массив байтов и добавляет в начало длину сериализованных данных
+     * формат: 4 байта (длина) + сериализованный объект
+     * 
+     * @param obj объект для сериализации
+     * @return массив байтов с длиной в начале, за которой следует сериализованный объект
+     * @throws ioexception если произошла ошибка при сериализации объекта
+     */
+    private static byte[] serializeWithLength(Object obj) throws IOException { // статический метод сериализации с длиной
+        byte[] serializedData; // массив для хранения сериализованных данных
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream(); // создаем поток для записи в массив байтов
+             ObjectOutputStream oos = new ObjectOutputStream(bos)) { // создаем поток для сериализации объектов
+            oos.writeObject(obj); // записываем объект в поток сериализации
+            oos.flush(); // принудительно сбрасываем буфер для гарантии записи всех данных
+            serializedData = bos.toByteArray(); // получаем массив сериализованных байтов
+        } // конец try-with-resources
+        
+        ByteBuffer buffer = ByteBuffer.allocate(4 + serializedData.length); // выделяем буфер под длину (4 байта) и данные
+        buffer.putInt(serializedData.length); // записываем длину данных в начало буфера
+        buffer.put(serializedData); // записываем сами сериализованные данные после длины
+        return buffer.array(); // возвращаем массив байтов из буфера
     }
 }

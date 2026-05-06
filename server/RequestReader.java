@@ -1,71 +1,111 @@
-package server; // объявление пакета server, где находится класс для чтения запросов на сервере
+package server; // класс находится в пакете server
 
-import common.Request; // импорт класса Request из пакета common (используется и клиентом, и сервером)
+import common.Request; // импорт класса запроса из общей модели
 
-import java.io.IOException; // импорт исключения для ошибок ввода-вывода
-import java.io.ObjectInputStream; // импорт класса для чтения сериализованных объектов из потока
-import java.net.Socket; // импорт класса сокета для сетевого соединения
+import java.io.*; // импорт всех классов для работы с потоками ввода-вывода
+import java.nio.ByteBuffer; // импорт для работы с буфером байтов в nio
+import java.nio.channels.SocketChannel; // импорт канала для tcp-соединения
 
-/**
- * Модуль чтения запроса от клиента
- * 
- * Отвечает за десериализацию объекта {@link Request} из потока сокета
- * Использует {@link ObjectInputStream} для чтения сериализованных объектов, переданных клиентом по сети
- * 
- * Класс следует паттерну "декоратор", оборачивая входной поток сокета в поток для чтения объектов
- * Каждый экземпляр RequestReader связан с одним конкретным клиентским сокетом
- * 
- * @author Anni
- * @version 1.0
- * @see Request
- * @see ObjectInputStream
- * @see server.ResponseSender
- */
-public class RequestReader { // объявление класса с именем RequestReader
-    private final ObjectInputStream ois; // финальное поле для чтения сериализованных объектов (инициализируется в конструкторе)
+public class RequestReader { // объявляет класс для чтения запросов от клиентов
+    private static final int BUFFER_SIZE = 65536; // размер буфера для чтения данных (64 кб)
     
     /**
-     * Конструктор - создает ObjectInputStream из сокета
+     * читает данные из канала клиента и накапливает их в обработчике
+     * при обнаружении полных сообщений извлекает их и сохраняет в обработчике
      * 
-     * Инициализирует внутренний поток для чтения сериализованных объектов на основе входного потока переданного сокета
-     * Клиент должен первым создавать {@link java.io.ObjectOutputStream}, а сервер - {@link ObjectInputStream}, иначе может возникнуть deadlock
-     * 
-     * @param socket сокет подключенного клиента, из которого будут читаться запросы
-     * @throws IOException если произошла ошибка при создании ObjectInputStream
+     * @param handler обработчик клиента, содержащий канал и буфер данных
+     * @throws ioexception если произошла ошибка чтения или клиент закрыл соединение
      */
-    public RequestReader(Socket socket) throws IOException { // конструктор класса RequestReader, принимает сокет клиента и создаёт ObjectInputStream для чтения сериализованных объектов
-        this.ois = new ObjectInputStream(socket.getInputStream()); // получение входного потока из сокета и обёртка в objectinputstream
+    public static void readRequest(ClientHandler handler) throws IOException { // статический метод чтения запроса
+        SocketChannel channel = handler.getChannel(); // получаем канал клиента из обработчика
+        ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE); // создаем буфер фиксированного размера
+        
+        int bytesRead = channel.read(buffer); // читаем данные из канала в буфер
+        
+        if (bytesRead == -1) { // проверяем, закрыл ли клиент соединение
+            throw new IOException("Клиент закрыл соединение"); // выбрасываем исключение
+        } // конец проверки bytesRead
+        
+        if (bytesRead > 0) { // проверяем, были ли прочитаны данные
+            buffer.flip(); // переключаем буфер из режима записи в режим чтения
+            byte[] data = new byte[bytesRead]; // создаем массив для прочитанных байтов
+            buffer.get(data); // копируем данные из буфера в массив
+            handler.getPendingData().write(data); // записываем данные в накопительный буфер обработчика
+            
+            extractCompleteMessages(handler); // пытаемся извлечь полные сообщения из накопленных данных
+        }
     }
     
     /**
-     * Читает и десериализует запрос от клиента
+     * извлекает полные сообщения из потока накопленных байтов
+     * формат сообщения: 4 байта длины + тело сообщения
+     * при обнаружении полного сообщения сохраняет его в обработчике
      * 
-     * Метод блокирует выполнение потока до тех пор, пока от клиента не поступит сериализованный объект
-     * После получения выполняет десериализацию и приводит результат к типу {@link Request}
-     * При десериализации проверяется, что класс Request доступен в classpath
-     * Ожидается, что все поля объекта были корректно сериализованы клиентом
-     * 
-     * @return объект Request, полученный от клиента
-     * @throws IOException если произошла ошибка при чтении из потока
-     * @throws ClassNotFoundException если класс Request или его зависимости не найдены в classpath сервера
-     * @see common.Request
+     * @param handler обработчик клиента с накопленными данными
      */
-    public Request readRequest() throws IOException, ClassNotFoundException { // метод для чтения и десериализации запроса от клиента, возвращает объект типа Request
-        return (Request) ois.readObject(); // чтение сериализованного объекта из потока и приведение к типу Request
-    }
+    private static void extractCompleteMessages(ClientHandler handler) { // статический метод извлечения полных сообщений
+        byte[] fullData = handler.getPendingData().toByteArray(); // получаем все накопленные байты в виде массива
+        ByteArrayInputStream bais = new ByteArrayInputStream(fullData); // создаем поток для чтения из массива
+        DataInputStream dis = new DataInputStream(bais); // оборачиваем в поток для удобного чтения примитивов
+        
+        try { // начало блока перехвата исключений
+            bais.mark(fullData.length); // запоминаем текущую позицию для возможного отката
+            
+            while (true) { // бесконечный цикл обработки сообщений
+                int messageLength; // переменная для длины сообщения
+                try { // попытка прочитать длину сообщения
+                    messageLength = dis.readInt(); // читаем 4 байта - длину сообщения
+                } catch (EOFException e) { // если достигнут конец потока (не хватает данных)
+                    bais.reset(); // откатываемся к сохраненной позиции
+                    break; // выходим из цикла
+                } // конец try-catch для readInt
+                
+                if (messageLength <= 0 || messageLength > 10 * 1024 * 1024) { // проверяем корректность длины (не более 10 мб)
+                    handler.getPendingData().reset(); // сбрасываем накопленные данные при ошибке
+                    return; // выходим из метода
+                } // конец проверки длины
+                
+                byte[] messageData = new byte[messageLength]; // создаем массив для тела сообщения
+                try { // попытка прочитать тело сообщения
+                    dis.readFully(messageData); // читаем ровно messageLength байт
+                } catch (EOFException e) { // если не хватило данных для полного сообщения
+                    bais.reset(); // откатываемся к сохраненной позиции
+                    break; // выходим из цикла
+                } // конец try-catch для readFully
+                
+                handler.setCompleteRequest(messageData); // сохраняем полное сообщение в обработчике
+                
+                byte[] remaining = new byte[bais.available()]; // создаем массив для оставшихся данных
+                bais.read(remaining); // читаем все оставшиеся байты
+                handler.getPendingData().reset(); // сбрасываем накопленные данные
+                handler.getPendingData().write(remaining); // записываем обратно только непрочитанные данные
+                
+                bais = new ByteArrayInputStream(remaining); // создаем новый поток для оставшихся данных
+                dis = new DataInputStream(bais); // создаем новый дата-поток для оставшихся данных
+                bais.mark(remaining.length); // сохраняем позицию для нового потока
+            } // конец цикла while
+        } catch (IOException e) { // обрабатываем любые ошибки ввода-вывода
+            handler.getPendingData().reset(); // сбрасываем накопленные данные при ошибке
+        } // конец try-catch
+    } // конец метода extractCompleteMessages
     
     /**
-     * Закрывает поток ввода
+     * десериализует массив байтов в объект request
+     * проверяет, что десериализованный объект имеет правильный тип
      * 
-     * Освобождает системные ресурсы, связанные с ObjectInputStream
-     * После вызова этого метода дальнейшее чтение запросов станет невозможным
-     * Метод безопасно обрабатывает ситуацию, когда поток уже был закрыт или не был инициализирован
-     * 
-     * @throws IOException если произошла ошибка при закрытии потока
+     * @param data массив байтов для десериализации
+     * @return десериализованный объект request
+     * @throws ioexception если произошла ошибка ввода-вывода или объект имеет неверный тип
+     * @throws classnotfoundexception если класс запроса не найден
      */
-    public void close() throws IOException { // метод для закрытия потока ввода, освобождает системные ресурсы
-        if (ois != null) { // проверка, что поток существует (не равен null)
-            ois.close(); // закрытие objectinputstream (освобождает системные ресурсы)
+    public static Request deserializeRequest(byte[] data) throws IOException, ClassNotFoundException { // статический метод десериализации запроса
+        try (ByteArrayInputStream bis = new ByteArrayInputStream(data); // создаем поток из массива байтов
+             ObjectInputStream ois = new ObjectInputStream(bis)) { // создаем поток для десериализации объектов
+            Object obj = ois.readObject(); // читаем объект из потока
+            if (obj instanceof Request) { // проверяем, является ли объект типом request
+                return (Request) obj; // возвращаем приведенный к типу request объект
+            } // конец проверки типа
+            throw new IOException("Получен объект не типа Request"); // выбрасываем исключение о неверном типе
         }
     }
 }
