@@ -58,7 +58,7 @@ public class Server { // объявляет главный класс серве
                         System.out.println("Коллекция сохранена в файл по команде сервера"); // выводим сообщение об успехе
                     } catch (Exception e) { // обрабатываем ошибки при сохранении
                         System.err.println("Ошибка сохранения: " + e.getMessage()); // выводим сообщение об ошибке
-                    } // конец блока catch
+                    }
                 } else if (input.equalsIgnoreCase("info")) { // проверяем команду info
                     System.out.println(collectionManager.getInfo()); // выводим информацию о коллекции
                 } else if (input.equalsIgnoreCase("exit") || input.equalsIgnoreCase("quit")) { // проверяем команды выхода
