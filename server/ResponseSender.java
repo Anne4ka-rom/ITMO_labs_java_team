@@ -59,7 +59,7 @@ public class ResponseSender { // объявляет класс для отпра
     private static byte[] serializeWithLength(Object obj) throws IOException { // статический метод сериализации с длиной
         byte[] serializedData; // массив для хранения сериализованных данных
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream(); // создаем поток для записи в массив байтов
-             ObjectOutputStream oos = new ObjectOutputStream(bos)) { // создаем поток для сериализации объектов
+            ObjectOutputStream oos = new ObjectOutputStream(bos)) { // создаем поток для сериализации объектов
             oos.writeObject(obj); // записываем объект в поток сериализации
             oos.flush(); // принудительно сбрасываем буфер для гарантии записи всех данных
             serializedData = bos.toByteArray(); // получаем массив сериализованных байтов

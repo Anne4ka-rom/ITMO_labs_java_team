@@ -13,7 +13,7 @@ import java.util.stream.Collectors; // импорт коллектора для 
  * Преобразует запросы в операции над коллекцией и формирует ответы
  * 
  * @author Anni
- * @version 1.0
+ * @version 1.1
  */
 public class CommandProcessor { // объявляет класс для обработки команд
     private final CollectionManager collectionManager; // менеджер коллекции для выполнения операций
@@ -104,6 +104,27 @@ public class CommandProcessor { // объявляет класс для обра
     }
     
     /**
+     * Формирует ответ для команд, возвращающих список транспортных средств
+     * Используется для устранения дублирования кода в методах processShow,
+     * processFilterByCapacity и processFilterLessThanType
+     * 
+     * @param vehicles список транспортных средств (уже отсортированный)
+     * @param emptyMessage сообщение, если список пуст
+     * @return объект Response с результатом
+     */
+    private Response createListResponse(List<Vehicle> vehicles, String emptyMessage) { // вспомогательный метод для формирования ответа со списком
+        if (vehicles == null || vehicles.isEmpty()) { // проверяем, пуст ли список
+            return new Response(ResponseStatus.SUCCESS, emptyMessage); // возвращаем сообщение о пустоте
+        }
+        
+        String result = vehicles.stream() // создаем поток из списка
+                .map(Vehicle::toString) // преобразуем каждый vehicle в его строковое представление
+                .collect(Collectors.joining("\n")); // объединяем строки с переводом строки в качестве разделителя
+        
+        return new Response(ResponseStatus.SUCCESS, result, vehicles); // возвращаем успешный ответ с текстом и списком
+    }
+    
+    /**
      * Обрабатывает команду help - выводит список всех доступных команд с описанием
      * 
      * @return ответ со списком команд
@@ -148,11 +169,7 @@ public class CommandProcessor { // объявляет класс для обра
             return new Response(ResponseStatus.SUCCESS, "Коллекция пуста"); // возвращаем сообщение о пустоте
         }
         List<Vehicle> vehicles = collectionManager.getAllSorted(); // получаем отсортированный список всех элементов
-        StringBuilder sb = new StringBuilder(); // создаем строитель строки
-        for (Vehicle v : vehicles) { // проходим по всем элементам
-            sb.append(v).append("\n"); // добавляем строковое представление элемента и перевод строки
-        }
-        return new Response(ResponseStatus.SUCCESS, sb.toString(), vehicles); // возвращаем успешный ответ с текстом и списком
+        return createListResponse(vehicles, "Коллекция пуста"); // формируем ответ через общий метод
     }
     
     /**
@@ -287,15 +304,10 @@ public class CommandProcessor { // объявляет класс для обра
             List<Vehicle> filtered = collectionManager.filterByCapacity(capacity); // получаем отфильтрованный список
             List<Vehicle> sorted = filtered.stream().sorted().collect(Collectors.toList()); // сортируем отфильтрованный список
             
-            if (sorted.isEmpty()) { // проверяем, пуст ли результат
-                return new Response(ResponseStatus.SUCCESS, "Элементы с capacity " + capacity + " не найдены"); // сообщение о пустом результате
-            }
-            
-            StringBuilder sb = new StringBuilder(); // создаем строитель строки
-            for (Vehicle v : sorted) { // проходим по всем отфильтрованным элементам
-                sb.append(v).append("\n"); // добавляем строковое представление элемента и перевод строки
-            }
-            return new Response(ResponseStatus.SUCCESS, sb.toString(), sorted); // возвращаем успешный ответ с текстом и списком
+            return createListResponse( // формируем ответ через общий метод
+                sorted, // передаем отсортированный список
+                "Элементы с capacity " + capacity + " не найдены" // сообщение для пустого списка
+            );
         } catch (Exception e) { // обрабатываем любые исключения
             return new Response(ResponseStatus.ERROR, "Ошибка фильтрации: " + e.getMessage()); // возвращаем ошибку с деталями
         }
@@ -304,24 +316,19 @@ public class CommandProcessor { // объявляет класс для обра
     /**
      * Обрабатывает команду filter_less_than_type - фильтрует элементы по типу (меньше указанного)
      * 
-     * @param argument тип для сравнения (vehicletype)
+     * @param argument тип для сравнения (VehicleType)
      * @return ответ с отфильтрованными элементами
      */
     private Response processFilterLessThanType(Object argument) { // метод обработки команды filter_less_than_type
         try { // начало блока перехвата исключений
-            VehicleType type = (VehicleType) argument; // приводим аргумент к типу vehicletype
+            VehicleType type = (VehicleType) argument; // приводим аргумент к типу VehicleType
             List<Vehicle> filtered = collectionManager.filterLessThanType(type); // получаем отфильтрованный список
             List<Vehicle> sorted = filtered.stream().sorted().collect(Collectors.toList()); // сортируем отфильтрованный список
             
-            if (sorted.isEmpty()) { // проверяем, пуст ли результат
-                return new Response(ResponseStatus.SUCCESS, "Элементы с типом меньше " + type + " не найдены"); // сообщение о пустом результате
-            }
-            
-            StringBuilder sb = new StringBuilder(); // создаем строитель строки
-            for (Vehicle v : sorted) { // проходим по всем отфильтрованным элементам
-                sb.append(v).append("\n"); // добавляем строковое представление элемента и перевод строки
-            }
-            return new Response(ResponseStatus.SUCCESS, sb.toString(), sorted); // возвращаем успешный ответ с текстом и списком
+            return createListResponse( // формируем ответ через общий метод
+                sorted, // передаем отсортированный список
+                "Элементы с типом меньше " + type + " не найдены" // сообщение для пустого списка
+            );
         } catch (Exception e) { // обрабатываем любые исключения
             return new Response(ResponseStatus.ERROR, "Ошибка фильтрации: " + e.getMessage()); // возвращаем ошибку с деталями
         }
