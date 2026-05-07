@@ -85,6 +85,7 @@ public class CommandProcessor { // объявляет класс для обра
             case INFO: return processInfo(); // вызов метода обработки info
             case SHOW: return processShow(); // вызов метода обработки show
             case ADD: return processAdd(argument); // вызов метода add с аргументом
+            case ADD_RANDOM: return processAddRandom(argument); // вызов метода add_random
             case UPDATE: return processUpdate(argument); // вызов метода update с аргументом
             case REMOVE_BY_ID: return processRemoveById(argument); // вызов метода удаления по id
             case CLEAR: return processClear(); // вызов метода очистки коллекции
@@ -114,6 +115,7 @@ public class CommandProcessor { // объявляет класс для обра
             "  info - информация о коллекции\n" + // описание команды info
             "  show - вывести все элементы\n" + // описание команды show
             "  add - добавить новый элемент\n" + // описание команды add
+            "  add_random - добавить случайный элемент\n" + // описание команды add_random
             "  update <id> - обновить элемент по ID\n" + // описание команды update
             "  remove_by_id <id> - удалить элемент по ID\n" + // описание команды remove_by_id
             "  clear - очистить коллекцию\n" + // описание команды clear
@@ -170,6 +172,25 @@ public class CommandProcessor { // объявляет класс для обра
             return new Response(ResponseStatus.ERROR, "Ошибка: неверный тип аргумента"); // возвращаем ошибку о неверном типе
         } catch (Exception e) { // обрабатываем любые другие исключения
             return new Response(ResponseStatus.ERROR, "Ошибка добавления: " + e.getMessage()); // возвращаем ошибку с деталями
+        }
+    }
+
+    /**
+     * Обрабатывает команду add_random - добавляет случайный элемент в коллекцию
+     * Аргумент содержит сгенерированный случайный объект vehicle
+     * 
+     * @param argument объект vehicle с случайными параметрами
+     * @return ответ с результатом операции
+     */
+    private Response processAddRandom(Object argument) { // метод обработки команды add_random
+        try { // начало блока перехвата исключений
+            Vehicle vehicle = (Vehicle) argument; // приводим аргумент к типу vehicle
+            collectionManager.add(vehicle); // добавляем элемент в коллекцию
+            return new Response(ResponseStatus.SUCCESS, "Случайный элемент добавлен с ID: " + vehicle.getId() + "\n" + vehicle); // возвращаем успех с id и данными добавленного элемента
+        } catch (ClassCastException e) { // обрабатываем ошибку приведения типов
+            return new Response(ResponseStatus.ERROR, "Ошибка: неверный тип аргумента"); // возвращаем ошибку о неверном типе
+        } catch (Exception e) { // обрабатываем любые другие исключения
+            return new Response(ResponseStatus.ERROR, "Ошибка добавления случайного элемента: " + e.getMessage()); // возвращаем ошибку с деталями
         }
     }
     
