@@ -10,6 +10,8 @@ import java.util.Scanner;
 
 /**
  * Главный класс клиентского приложения.
+ * Обеспечивает взаимодействие с сервером: чтение команд пользователя,
+ * валидацию ввода, сериализацию и отправку команд, обработку ответов.
  *
  * @author Polina
  * @version 1.0
@@ -28,8 +30,8 @@ public class Client {
     private DataOutputStream out; // поток для отправки данных с префиксом длины
     private DataInputStream in; // поток для приема данных с префиксом длины
 
-    private int scriptDepth = 0; // текущая глубина вложенности скриптов
-    private ArrayList<String> scriptStack = new ArrayList<>(); // стек выполняемых скриптов (для защиты от рекурсии)
+    private int scriptDepth = 0; // текущая глубина вложенности скриптов (для ограничения рекурсии)
+    private ArrayList<String> scriptStack = new ArrayList<>(); // стек выполняемых скриптов - отслеживает имена файлов (для защиты от рекурсии)
 
     public Client(String host, int port) { // конструктор клиента
         this.host = host;
@@ -38,7 +40,8 @@ public class Client {
         this.scanner = new Scanner(System.in);
     }
 
-    public void start() { // запуск клиента: подключение → ввод команд → отправка → получение ответа
+    // запуск клиента
+    public void start() { // подключение → ввод команд → отправка → получение ответа
         System.out.println("Клиент запущен. Подключение к серверу " + host + ":" + port);
 
         while (isRunning) { // основной цикл
@@ -52,7 +55,7 @@ public class Client {
 
                     if (input.isEmpty()) continue; // пропускаем пустые строки
 
-                    if (input.equalsIgnoreCase("exit")) { // команда exit - завершаем клиент
+                    if (input.equalsIgnoreCase("exit")) { // команда exit - завершаем клиент, обрабатывается локально
                         isRunning = false;
                         System.out.println("Клиент завершен");
                         break;
@@ -61,18 +64,18 @@ public class Client {
                     sendCommand(input); // отправляем команду на сервер
                 }
 
-            } catch (IOException e) { // сервер недоступен - ждем и пытаемся переподключиться
+            } catch (IOException e) { // сервер недоступен или соединение разорвано
                 System.out.println("Сервер недоступен. Повторное подключение через " +
                         RECONNECT_DELAY / 1000 + " секунд...");
                 try {
-                    Thread.sleep(RECONNECT_DELAY);
+                    Thread.sleep(RECONNECT_DELAY); // пауза перед повторной попыткой
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     break;
                 }
             }
         }
-        close(); // закрываем ресурсы
+        close(); // закрываем ресурсы: сначала потоки, затем сокет, затем сканер
     }
 
     private void connect() throws IOException { // устанавливает соединение с сервером
@@ -123,19 +126,8 @@ public class Client {
 
             // вывод результата
             if (response.getStatus() == ResponseStatus.SUCCESS) {
+                // данные из response.getData() не выводим, чтобы избежать дублирования
                 System.out.println(response.getMessage());
-                if (response.getData() != null) {
-                    Object dataObj = response.getData();
-                    if (dataObj instanceof java.util.List) { // для команды show - выводим поэлементно
-                        @SuppressWarnings("unchecked")
-                        java.util.List<Vehicle> list = (java.util.List<Vehicle>) dataObj;
-                        for (Vehicle v : list) {
-                            System.out.println(v);
-                        }
-                    } else {
-                        System.out.println(dataObj);
-                    }
-                }
             } else {
                 System.err.println("Ошибка: " + response.getMessage());
             }
