@@ -6,6 +6,7 @@ import common.model.VehicleType; // импорт перечисления тип
 import server.collection.CollectionManager; // импорт менеджера коллекции из подпакета collection
 
 import java.util.List; // импорт интерфейса списка
+import java.util.function.Supplier; // импорт поставщика для ленивой инициализации сообщений
 import java.util.stream.Collectors; // импорт коллектора для stream api
 
 /**
@@ -13,7 +14,7 @@ import java.util.stream.Collectors; // импорт коллектора для 
  * Преобразует запросы в операции над коллекцией и формирует ответы
  * 
  * @author Anni
- * @version 1.1
+ * @version 1.2
  */
 public class CommandProcessor { // объявляет класс для обработки команд
     private final CollectionManager collectionManager; // менеджер коллекции для выполнения операций
@@ -83,7 +84,10 @@ public class CommandProcessor { // объявляет класс для обра
         switch (type) { // выбираем обработчик в зависимости от типа команды
             case HELP: return processHelp(); // вызов метода обработки help
             case INFO: return processInfo(); // вызов метода обработки info
-            case SHOW: return processShow(); // вызов метода обработки show
+            case SHOW: return processListCommand( // show - универсальный метод
+                collectionManager::getAllUnsorted, // получаем все элементы (без сортировки)
+                "Коллекция пуста" // сообщение для пустого списка
+            );
             case ADD: return processAdd(argument); // вызов метода add с аргументом
             case UPDATE: return processUpdate(argument); // вызов метода update с аргументом
             case REMOVE_BY_ID: return processRemoveById(argument); // вызов метода удаления по id
@@ -104,24 +108,27 @@ public class CommandProcessor { // объявляет класс для обра
     }
     
     /**
-     * Формирует ответ для команд, возвращающих список транспортных средств
-     * Используется для устранения дублирования кода в методах processShow,
-     * processFilterByCapacity и processFilterLessThanType
+     * Универсальный метод для обработки любых команд, возвращающих список транспортных средств
+     * Полностью устраняет дублирование между show, filter_by_capacity и filter_less_than_type
      * 
-     * @param vehicles список транспортных средств (уже отсортированный)
-     * @param emptyMessage сообщение, если список пуст
-     * @return объект Response с результатом
+     * @param dataProvider поставщик, возвращающий список транспортных средств (еще не отсортированный)
+     * @param emptyMessage сообщение для пустого списка
+     * @return ответ с отсортированным списком элементов
      */
-    private Response createListResponse(List<Vehicle> vehicles, String emptyMessage) { // вспомогательный метод для формирования ответа со списком
-        if (vehicles == null || vehicles.isEmpty()) { // проверяем, пуст ли список
+    private Response processListCommand(Supplier<List<Vehicle>> dataProvider, String emptyMessage) {
+        List<Vehicle> items = dataProvider.get(); // получаем список от конкретного метода
+        
+        if (items == null || items.isEmpty()) { // проверяем, пуст ли результат
             return new Response(ResponseStatus.SUCCESS, emptyMessage); // возвращаем сообщение о пустоте
         }
         
-        String result = vehicles.stream() // создаем поток из списка
-                .map(Vehicle::toString) // преобразуем каждый vehicle в его строковое представление
-                .collect(Collectors.joining("\n")); // объединяем строки с переводом строки в качестве разделителя
+        // сортируем и формируем строку через Stream API
+        String result = items.stream()
+                .sorted() // естественная сортировка (по имени)
+                .map(Vehicle::toString) // преобразуем в строку
+                .collect(Collectors.joining("\n")); // объединяем с переводами строк
         
-        return new Response(ResponseStatus.SUCCESS, result, vehicles); // возвращаем успешный ответ с текстом и списком
+        return new Response(ResponseStatus.SUCCESS, result, items); // возвращаем успешный ответ
     }
     
     /**
@@ -156,20 +163,6 @@ public class CommandProcessor { // объявляет класс для обра
      */
     private Response processInfo() { // метод обработки команды info
         return new Response(ResponseStatus.SUCCESS, collectionManager.getInfo()); // возвращаем информацию от менеджера коллекции
-    }
-    
-    /**
-     * Обрабатывает команду show - возвращает все элементы коллекции
-     * Если коллекция пуста, возвращает соответствующее сообщение
-     * 
-     * @return ответ со списком элементов
-     */
-    private Response processShow() { // метод обработки команды show
-        if (collectionManager.isEmpty()) { // проверяем, пуста ли коллекция
-            return new Response(ResponseStatus.SUCCESS, "Коллекция пуста"); // возвращаем сообщение о пустоте
-        }
-        List<Vehicle> vehicles = collectionManager.getAllSorted(); // получаем отсортированный список всех элементов
-        return createListResponse(vehicles, "Коллекция пуста"); // формируем ответ через общий метод
     }
     
     /**
@@ -301,11 +294,10 @@ public class CommandProcessor { // объявляет класс для обра
     private Response processFilterByCapacity(Object argument) { // метод обработки команды filter_by_capacity
         try { // начало блока перехвата исключений
             double capacity = (double) argument; // приводим аргумент к типу double
-            List<Vehicle> filtered = collectionManager.filterByCapacity(capacity); // получаем отфильтрованный список
-            List<Vehicle> sorted = filtered.stream().sorted().collect(Collectors.toList()); // сортируем отфильтрованный список
             
-            return createListResponse( // формируем ответ через общий метод
-                sorted, // передаем отсортированный список
+            // используем универсальный метод для обработки команд со списком
+            return processListCommand(
+                () -> collectionManager.filterByCapacity(capacity), // метод, возвращающий отфильтрованные элементы
                 "Элементы с capacity " + capacity + " не найдены" // сообщение для пустого списка
             );
         } catch (Exception e) { // обрабатываем любые исключения
@@ -322,11 +314,10 @@ public class CommandProcessor { // объявляет класс для обра
     private Response processFilterLessThanType(Object argument) { // метод обработки команды filter_less_than_type
         try { // начало блока перехвата исключений
             VehicleType type = (VehicleType) argument; // приводим аргумент к типу VehicleType
-            List<Vehicle> filtered = collectionManager.filterLessThanType(type); // получаем отфильтрованный список
-            List<Vehicle> sorted = filtered.stream().sorted().collect(Collectors.toList()); // сортируем отфильтрованный список
             
-            return createListResponse( // формируем ответ через общий метод
-                sorted, // передаем отсортированный список
+            // используем универсальный метод для обработки команд со списком
+            return processListCommand(
+                () -> collectionManager.filterLessThanType(type), // метод, возвращающий отфильтрованные элементы
                 "Элементы с типом меньше " + type + " не найдены" // сообщение для пустого списка
             );
         } catch (Exception e) { // обрабатываем любые исключения
