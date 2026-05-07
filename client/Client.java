@@ -14,7 +14,7 @@ import java.util.Scanner;
  * валидацию ввода, сериализацию и отправку команд, обработку ответов.
  *
  * @author Polina
- * @version 1.0
+ * @version 1.1
  */
 public class Client {
     private static final String DEFAULT_HOST = "localhost"; // хост сервера по умолчанию
@@ -32,6 +32,10 @@ public class Client {
 
     private int scriptDepth = 0; // текущая глубина вложенности скриптов (для ограничения рекурсии)
     private ArrayList<String> scriptStack = new ArrayList<>(); // стек выполняемых скриптов - отслеживает имена файлов (для защиты от рекурсии)
+    
+    // Для чтения полей из скрипта
+    private BufferedReader scriptReader = null; // ридер для текущего скрипта
+    private boolean isExecutingScript = false; // флаг выполнения скрипта
 
     public Client(String host, int port) { // конструктор клиента
         this.host = host;
@@ -262,8 +266,15 @@ public class Client {
 
         scriptStack.add(filename); // добавляем в стек
         scriptDepth++; // увеличиваем глубину
+        
+        // Сохраняем старый ридер и флаг
+        BufferedReader oldScriptReader = this.scriptReader;
+        boolean oldIsExecutingScript = this.isExecutingScript;
+        
+        this.isExecutingScript = true;
 
         try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
+            this.scriptReader = reader; // устанавливаем текущий ридер для чтения полей
             String line;
             int lineNum = 0;
 
@@ -286,18 +297,43 @@ public class Client {
         } finally {
             scriptDepth--; // уменьшаем глубину
             scriptStack.remove(scriptStack.size() - 1); // убираем из стека
+            this.scriptReader = oldScriptReader; // восстанавливаем старый ридер
+            this.isExecutingScript = oldIsExecutingScript;
         }
     }
+    
+    /**
+     * Читает строку из правильного источника (консоль или файл скрипта)
+     */
+    private String readLine() {
+        if (isExecutingScript && scriptReader != null) {
+            try {
+                String line = scriptReader.readLine();
+                if (line != null) {
+                    line = line.trim();
+                    System.out.println("  [из скрипта] > " + line);
+                    return line;
+                }
+            } catch (IOException e) {
+                System.out.println("Ошибка чтения из скрипта: " + e.getMessage());
+            }
+        }
+        // Читаем из консоли
+        return scanner.nextLine().trim();
+    }
 
-    // читает данные транспортного средства с консоли
+    // читает данные транспортного средства с консоли или из скрипта
     private Vehicle readVehicle() {
         Vehicle vehicle = new Vehicle();
-        System.out.println("Введите данные транспортного средства:");
+        
+        if (!isExecutingScript) {
+            System.out.println("Введите данные транспортного средства:");
+        }
 
         // ввод имени
         while (true) {
             System.out.print("  name (не пустое): ");
-            String input = scanner.nextLine().trim();
+            String input = readLine();
             try {
                 InputValidator.validateName(input);
                 vehicle.setName(input);
@@ -310,7 +346,7 @@ public class Client {
         // ввод координаты x
         while (true) {
             System.out.print("  coordinate x (Double, <= 636): ");
-            String input = scanner.nextLine().trim();
+            String input = readLine();
             try {
                 Double x = input.isEmpty() ? null : Double.parseDouble(input);
                 InputValidator.validateCoordinateX(x);
@@ -328,10 +364,10 @@ public class Client {
         }
 
         // ввод координаты y
-        System.out.print("  coordinate y (int): ");
         while (true) {
+            System.out.print("  coordinate y (int): ");
             try {
-                String input = scanner.nextLine().trim();
+                String input = readLine();
                 int y = Integer.parseInt(input);
                 vehicle.getCoordinates().setY(y);
                 break;
@@ -343,7 +379,7 @@ public class Client {
         // ввод мощности двигателя
         while (true) {
             System.out.print("  enginePower (Double > 0): ");
-            String input = scanner.nextLine().trim();
+            String input = readLine();
             try {
                 Double power = Double.parseDouble(input);
                 InputValidator.validateEnginePower(power);
@@ -359,7 +395,7 @@ public class Client {
         // ввод вместимости
         while (true) {
             System.out.print("  capacity (double > 0): ");
-            String input = scanner.nextLine().trim();
+            String input = readLine();
             try {
                 double capacity = Double.parseDouble(input);
                 InputValidator.validateCapacity(capacity);
@@ -375,7 +411,7 @@ public class Client {
         // ввод типа транспорта
         while (true) {
             System.out.print("  type (" + VehicleType.getTypes() + "): ");
-            String input = scanner.nextLine().trim().toUpperCase();
+            String input = readLine().toUpperCase();
             try {
                 VehicleType type = InputValidator.validateAndParseVehicleType(input);
                 vehicle.setType(type);
@@ -387,7 +423,7 @@ public class Client {
 
         // ввод типа топлива (может быть null)
         System.out.print("  fuelType (" + FuelType.getTypes() + ", или пустая строка для null): ");
-        String fuelInput = scanner.nextLine().trim();
+        String fuelInput = readLine();
         if (!fuelInput.isEmpty()) {
             try {
                 vehicle.setFuelType(FuelType.valueOf(fuelInput.toUpperCase()));
