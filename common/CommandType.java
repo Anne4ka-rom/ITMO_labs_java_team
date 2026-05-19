@@ -13,6 +13,7 @@ public enum CommandType {
     INFO("info", "вывести информацию о коллекции"),
     SHOW("show", "вывести все элементы коллекции"),
     ADD("add", "добавить новый элемент"),
+    ADD_RANDOM("add_random", "добавить случайный элемент в коллекцию"),
     UPDATE("update", "обновить элемент по ID"),
     REMOVE_BY_ID("remove_by_id", "удалить элемент по ID"),
     CLEAR("clear", "очистить коллекцию"),
@@ -22,6 +23,7 @@ public enum CommandType {
     SUM_OF_CAPACITY("sum_of_capacity", "вывести сумму грузоподъемностей"),
     FILTER_BY_CAPACITY("filter_by_capacity", "вывести элементы с заданной грузоподъемностью"),
     FILTER_LESS_THAN_TYPE("filter_less_than_type", "вывести элементы, тип которых меньше заданного"),
+    EXECUTE_SCRIPT("execute_script", "выполнить скрипт из файла"),
     EXIT("exit", "завершить работу клиента"),
     SAVE("save", "сохранить коллекцию (только сервер)");
 
@@ -35,11 +37,11 @@ public enum CommandType {
 
     public String getName() {
         return name;
-    }
+    } // возвращает имя команды
 
     public String getDescription() {
         return description;
-    }
+    } // возвращает описание команды
 
     public static CommandType fromString(String str) {
         for (CommandType type : values()) { // перебираем все значения перечисления
