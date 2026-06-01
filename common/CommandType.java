@@ -5,7 +5,7 @@ package common;
  * Каждая команда имеет имя (для ввода пользователем) и описание (для справки).
  *
  * @author Polina
- * @version 1.0
+ * @version 2.0
  */
 
 public enum CommandType {
@@ -13,7 +13,7 @@ public enum CommandType {
     INFO("info", "вывести информацию о коллекции"),
     SHOW("show", "вывести все элементы коллекции"),
     ADD("add", "добавить новый элемент"),
-    ADD_RANDOM("add_random", "добавить случайный элемент в коллекцию"),
+    ADD_RANDOM("add_random", "добавить случайное транспортное средство в коллекцию"),
     UPDATE("update", "обновить элемент по ID"),
     REMOVE_BY_ID("remove_by_id", "удалить элемент по ID"),
     CLEAR("clear", "очистить коллекцию"),
@@ -25,7 +25,8 @@ public enum CommandType {
     FILTER_LESS_THAN_TYPE("filter_less_than_type", "вывести элементы, тип которых меньше заданного"),
     EXECUTE_SCRIPT("execute_script", "выполнить скрипт из файла"),
     EXIT("exit", "завершить работу клиента"),
-    SAVE("save", "сохранить коллекцию (только сервер)");
+    REGISTER("register", "зарегистрировать нового пользователя"),
+    LOGIN("login", "авторизоваться");
 
     private final String name; // имя команды, которое вводит пользователь
     private final String description; // краткое описание команды для справки
