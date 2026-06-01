@@ -4,37 +4,34 @@ import java.io.Serializable;
 
 /**
  * Класс запроса от клиента к серверу.
- * Содержит команду для выполнения и опциональные данные авторизации.
+ * Содержит команду, которую нужно выполнить на сервере.
  *
  * @author Polina
- * @version 2.0
- * @see Command
- * @see Response
- * @see AuthData
+ * @version 1.0
  */
 public class Request implements Serializable {
-    private static final long serialVersionUID = 2L; // уникальный идентификатор версии класса для сериализации
+    private static final long serialVersionUID = 1L; // идентификатор версии для совместимости сериализации
 
-    private final Command command; // команда, которую нужно выполнить на сервере
-    private final AuthData auth; // данные авторизации пользователя (может быть null для неавторизованных запросов)
+    private final Command command; // команда, которую клиент просит выполнить на сервере
 
-    public Request(Command command) { // конструктор запроса без авторизации
-        this(command, null);
+    // конструктор: создает запрос с указанной командой
+    public Request(Command command) {
+        this.command = command; // сохраняем команду
     }
 
-    public Request(Command command, AuthData auth) { // конструктор запроса с авторизацией
-        this.command = command;
-        this.auth = auth;
-    }
-
-    public Command getCommand() { // возвращает команду, содержащуюся в запросе
+    // возвращает команду, содержащуюся в запросе
+    public Command getCommand() {
         return command;
     }
 
-    public AuthData getAuth() { // возвращает данные авторизации пользователя
-        return auth;
+    // строковое представление запроса (для отладки и логирования)
+    @Override
+    public String toString() {
+        return "Request{" +
+                "command=" + command +
+                '}';
     }
-
+}
     @Override
     public String toString() { // возвращает строковое представление запроса
         return "Request{" +
