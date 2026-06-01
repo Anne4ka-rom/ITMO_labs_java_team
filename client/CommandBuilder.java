@@ -8,36 +8,65 @@ import common.model.*;
  * Фабричный слой между вводом пользователя и сетевым слоем.
  *
  * @author Polina
- * @version 1.1
+ * @version 2.0
  */
 public class CommandBuilder {
 
-    private final VehicleReader vehicleReader; // используется для чтения vehicle при командах add/update/remove_lower
+    private final VehicleReader vehicleReader; // для чтения Vehicle из консоли
+    private String login; // логин текущего пользователя
+    private String password; // пароль текущего пользователя
 
-    public CommandBuilder(VehicleReader vehicleReader) {
+    // конструктор: сохраняем VehicleReader и учетные данные пользователя
+    public CommandBuilder(VehicleReader vehicleReader, String login, String password) {
         this.vehicleReader = vehicleReader;
+        this.login = login;
+        this.password = password;
     }
 
-    // создает объект Command на основе введенной строки
+    // обновление учетных данных после успешного логина
+    public void setCredentials(String login, String password) {
+        this.login = login;
+        this.password = password;
+    }
+
+    // основной метод: создает команду из строки ввода
     public Command createCommand(String commandName, String argument) {
+        // преобразуем имя команды в тип перечисления
         CommandType type = CommandType.fromString(commandName);
-        if (type == null) return null;
+        if (type == null) return null; // неизвестная команда
 
         switch (type) {
-            // команды без аргументов
+            // команды без аргументов - просто создаем с логином/паролем
             case HELP: case INFO: case SHOW: case CLEAR:
             case REMOVE_LAST: case SORT: case SUM_OF_CAPACITY:
-                return new Command(type);
+                return new Command(type, login, password);
 
-            // add - требует ввода vehicle
+            // команды регистрации и входа - требуют логин и пароль
+            case REGISTER:
+            case LOGIN:
+                // проверяем, что аргумент передан
+                if (argument == null) {
+                    System.out.println("Укажите логин и пароль: " + commandName + " <login> <password>");
+                    return null;
+                }
+                // разбиваем аргумент на логин и пароль
+                String[] parts = argument.split("\\s+", 2);
+                if (parts.length < 2) {
+                    System.out.println("Укажите логин и пароль");
+                    return null;
+                }
+                // передаем массив [логин, пароль] в команду
+                return new Command(type, new String[]{parts[0], parts[1]}, login, password);
+
+            // добавление элемента - требует ввода данных
             case ADD:
                 return createAddCommand();
 
-            // add_random - требует количество элементов
+            // добавление случайных элементов - без аргументов
             case ADD_RANDOM:
-                return new Command(type);
+                return new Command(type, login, password);
 
-            // update - требует id и новый vehicle
+            // обновление элемента - требует id
             case UPDATE:
                 if (argument == null) {
                     System.out.println("Укажите id элемента");
@@ -51,7 +80,7 @@ public class CommandBuilder {
                     return null;
                 }
 
-                // remove_by_id - требует id
+            // удаление по id
             case REMOVE_BY_ID:
                 if (argument == null) {
                     System.out.println("Укажите id элемента");
@@ -59,17 +88,17 @@ public class CommandBuilder {
                 }
                 try {
                     int id = Integer.parseInt(argument);
-                    return new Command(type, id);
+                    return new Command(type, id, login, password);
                 } catch (NumberFormatException e) {
                     System.out.println("id должен быть числом");
                     return null;
                 }
 
-                // remove_lower - требует эталонный vehicle
+            // удаление меньших - требует ввода эталонного элемента
             case REMOVE_LOWER:
                 return createRemoveLowerCommand();
 
-            // filter_by_capacity - требует значение capacity
+            // фильтрация по вместимости
             case FILTER_BY_CAPACITY:
                 if (argument == null) {
                     System.out.println("Укажите значение capacity");
@@ -77,13 +106,13 @@ public class CommandBuilder {
                 }
                 try {
                     double capacity = Double.parseDouble(argument);
-                    return new Command(type, capacity);
+                    return new Command(type, capacity, login, password);
                 } catch (NumberFormatException e) {
                     System.out.println("capacity должно быть числом");
                     return null;
                 }
 
-                // filter_less_than_type - требует тип
+            // фильтрация по типу (меньше указанного)
             case FILTER_LESS_THAN_TYPE:
                 if (argument == null) {
                     System.out.println("Укажите тип");
@@ -91,44 +120,50 @@ public class CommandBuilder {
                 }
                 try {
                     VehicleType vehicleType = InputValidator.validateAndParseVehicleType(argument);
-                    return new Command(type, vehicleType);
+                    return new Command(type, vehicleType, login, password);
                 } catch (IllegalArgumentException e) {
                     System.out.println(e.getMessage());
                     return null;
                 }
 
-                // execute_script - требует имя файла
+            // выполнение скрипта из файла
             case EXECUTE_SCRIPT:
                 if (argument == null) {
                     System.out.println("Укажите имя файла скрипта");
                     return null;
                 }
-                return new Command(type, argument);
+                return new Command(type, argument, login, password);
 
-                // exit
+            // выход из программы
             case EXIT:
-                return new Command(type);
+                return new Command(type, login, password);
 
             default:
-                return null;
+                return null; // неизвестная команда
         }
     }
 
-    private Command createAddCommand() { // создает команду add
+    // создает команду ADD: читает Vehicle и устанавливает владельца
+    private Command createAddCommand() {
         System.out.println("Введите данные для добавления:");
-        Vehicle vehicle = vehicleReader.readVehicle();
-        return new Command(CommandType.ADD, vehicle);
+        Vehicle vehicle = vehicleReader.readVehicle(); // читаем данные транспорта
+        vehicle.setOwnerLogin(login); // устанавливаем владельца
+        return new Command(CommandType.ADD, vehicle, login, password);
     }
 
-    private Command createUpdateCommand(int id) { // создает команду update
+    // создает команду UPDATE: читает новые данные для элемента с указанным id
+    private Command createUpdateCommand(int id) {
         System.out.println("Введите новые данные для элемента с ID " + id + ":");
-        Vehicle vehicle = vehicleReader.readVehicle();
-        return new Command(CommandType.UPDATE, new Object[]{id, vehicle});
+        Vehicle vehicle = vehicleReader.readVehicle(); // читаем новые данные
+        vehicle.setOwnerLogin(login); // устанавливаем владельца
+        return new Command(CommandType.UPDATE, new Object[]{id, vehicle}, login, password);
     }
 
-    private Command createRemoveLowerCommand() { // создает команду remove_lower
+    // создает команду REMOVE_LOWER: читает эталонный элемент для сравнения
+    private Command createRemoveLowerCommand() {
         System.out.println("Введите эталонный элемент для сравнения:");
-        Vehicle vehicle = vehicleReader.readVehicle();
-        return new Command(CommandType.REMOVE_LOWER, vehicle);
+        Vehicle vehicle = vehicleReader.readVehicle(); // читаем эталонный транспорт
+        vehicle.setOwnerLogin(login); // устанавливаем владельца
+        return new Command(CommandType.REMOVE_LOWER, vehicle, login, password);
     }
 }
