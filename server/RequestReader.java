@@ -108,7 +108,7 @@ public class RequestReader { // объявляет класс для чтени�
      */
     public static Request deserializeRequest(byte[] data) throws IOException, ClassNotFoundException { // статический метод десериализации запроса
         try (ByteArrayInputStream bis = new ByteArrayInputStream(data); // создаем поток из массива байтов
-            ObjectInputStream ois = new ObjectInputStream(bis)) { // создаем поток для десериализации объектов
+             ObjectInputStream ois = new ObjectInputStream(bis)) { // создаем поток для десериализации объектов
             Object obj = ois.readObject(); // читаем объект из потока
             if (obj instanceof Request) { // проверяем, является ли объект типом Request
                 return (Request) obj; // возвращаем приведенный к типу Request объект
