@@ -8,26 +8,35 @@ import java.io.Serializable;
  *
  * @author Polina
  * @version 1.0
- * @see Command
- * @see Response
  */
 public class Request implements Serializable {
-    private static final long serialVersionUID = 1L; // уникальный идентификатор версии класса для сериализации
+    private static final long serialVersionUID = 1L; // идентификатор версии для совместимости сериализации
 
-    private final Command command; // команда, которую нужно выполнить на сервере
+    private final Command command; // команда, которую клиент просит выполнить на сервере
 
-    public Request(Command command) { // конструктор запроса
-        this.command = command;
+    // конструктор: создает запрос с указанной командой
+    public Request(Command command) {
+        this.command = command; // сохраняем команду
     }
 
-    public Command getCommand() { // возвращает команду, содержащуюся в запросе
+    // возвращает команду, содержащуюся в запросе
+    public Command getCommand() {
         return command;
     }
 
+    // строковое представление запроса (для отладки и логирования)
+    @Override
+    public String toString() {
+        return "Request{" +
+                "command=" + command +
+                '}';
+    }
+}
     @Override
     public String toString() { // возвращает строковое представление запроса
         return "Request{" +
                 "command=" + command +
+                ", auth=" + auth +
                 '}';
     }
 }

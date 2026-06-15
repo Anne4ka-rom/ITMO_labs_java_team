@@ -1,11 +1,7 @@
 package client;
 
-import common.*;
-import common.model.*;
-
 import java.io.*;
 import java.net.*;
-import java.util.ArrayList;
 import java.util.Scanner;
 
 /**
@@ -20,7 +16,6 @@ public class Client {
     private static final String DEFAULT_HOST = "localhost"; // хост сервера по умолчанию
     private static final int DEFAULT_PORT = 1067; // порт сервера по умолчанию
     private static final int RECONNECT_DELAY = 5000; // задержка перед повторным подключением (5 секунд)
-    private static final int MAX_SCRIPT_DEPTH = 5; // максимальная глубина вложенности скриптов
 
     private final String host; // хост сервера
     private final int port; // порт сервера
@@ -30,18 +25,19 @@ public class Client {
     private DataOutputStream out; // поток для отправки данных с префиксом длины
     private DataInputStream in; // поток для приема данных с префиксом длины
 
-    private int scriptDepth = 0; // текущая глубина вложенности скриптов (для ограничения рекурсии)
-    private ArrayList<String> scriptStack = new ArrayList<>(); // стек выполняемых скриптов - отслеживает имена файлов (для защиты от рекурсии)
-    
-    // Для чтения полей из скрипта
-    private BufferedReader scriptReader = null; // ридер для текущего скрипта
-    private boolean isExecutingScript = false; // флаг выполнения скрипта
+    // вспомогательные компоненты — создаются один раз и переиспользуются при переподключении
+    private final VehicleReader vehicleReader;
+    private final ScriptExecutor scriptExecutor;
 
     public Client(String host, int port) { // конструктор клиента
         this.host = host;
         this.port = port;
         this.isRunning = true;
         this.scanner = new Scanner(System.in);
+
+        // инициализируем компоненты (commandSender создаётся после connect, т.к. зависит от сокета)
+        this.vehicleReader = new VehicleReader(scanner);
+        this.scriptExecutor = new ScriptExecutor(vehicleReader);
     }
 
     // запуск клиента
@@ -52,6 +48,11 @@ public class Client {
             try {
                 connect(); // подключаемся к серверу
                 System.out.println("Подключение установлено!");
+
+                // создаём CommandSender и CommandBuilder после установки соединения
+                CommandBuilder commandBuilder = new CommandBuilder(vehicleReader);
+                CommandSender commandSender = new CommandSender(out, in, commandBuilder, scriptExecutor);
+                scriptExecutor.setCommandSender(commandSender); // замыкаем зависимость
 
                 while (isRunning) { // цикл ввода команд
                     System.out.print("> ");
@@ -65,7 +66,7 @@ public class Client {
                         break;
                     }
 
-                    sendCommand(input); // отправляем команду на сервер
+                    commandSender.sendCommand(input); // отправляем команду на сервер
                 }
 
             } catch (IOException e) { // сервер недоступен или соединение разорвано
@@ -86,356 +87,6 @@ public class Client {
         socket = new Socket(host, port); // создаем сокет
         out = new DataOutputStream(socket.getOutputStream()); // поток на отправку (с префиксом длины)
         in = new DataInputStream(socket.getInputStream()); // поток на чтение (с префиксом длины)
-    }
-
-    private void sendCommand(String input) throws IOException { // отправляет команду на сервер и выводит ответ
-        // разбираем введенную строку
-        String[] parts = input.split("\\s+", 2);
-        String commandName = parts[0].toLowerCase();
-        String argument = parts.length > 1 ? parts[1] : null;
-
-        Command command = createCommand(commandName, argument); // создаем объект Command
-
-        // если команда не распознана - выходим
-        if (command == null) {
-            System.out.println("Неизвестная команда. Введите 'help' для справки.");
-            return;
-        }
-
-        // execute_script выполняется локально, не отправляется на сервер
-        if (command.getType() == CommandType.EXECUTE_SCRIPT) {
-            executeScript((String) command.getArgument());
-            return;
-        }
-
-        // отправка с префиксом длины (чтобы сервер знал, сколько байт читать)
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        ObjectOutputStream oos = new ObjectOutputStream(bos);
-        oos.writeObject(new Request(command));
-        oos.flush();
-        byte[] data = bos.toByteArray();
-
-        out.writeInt(data.length); // сначала отправляем длину
-        out.write(data); // потом сами данные
-        out.flush();
-
-        // чтение ответа с префиксом длины
-        int responseLength = in.readInt(); // читаем длину ответа
-        byte[] responseData = new byte[responseLength];
-        in.readFully(responseData); // читаем данные
-
-        try (ByteArrayInputStream bis = new ByteArrayInputStream(responseData);
-             ObjectInputStream ois = new ObjectInputStream(bis)) {
-            Response response = (Response) ois.readObject(); // десериализуем ответ
-
-            // вывод результата
-            if (response.getStatus() == ResponseStatus.SUCCESS) {
-                // данные из response.getData() не выводим, чтобы избежать дублирования
-                System.out.println(response.getMessage());
-            } else {
-                System.err.println("Ошибка: " + response.getMessage());
-            }
-        } catch (ClassNotFoundException e) {
-            System.err.println("Ошибка десериализации ответа");
-        }
-    }
-
-    // создает объект Command на основе введенной строки
-    private Command createCommand(String commandName, String argument) {
-        CommandType type = CommandType.fromString(commandName);
-        if (type == null) return null;
-
-        switch (type) {
-            // команды без аргументов
-            case HELP: case INFO: case SHOW: case CLEAR:
-            case REMOVE_LAST: case SORT: case SUM_OF_CAPACITY:
-                return new Command(type);
-
-            // add - требует ввода vehicle
-            case ADD:
-                return createAddCommand();
-
-            // update - требует id и новый vehicle
-            case UPDATE:
-                if (argument == null) {
-                    System.out.println("Укажите id элемента");
-                    return null;
-                }
-                try {
-                    int id = Integer.parseInt(argument);
-                    return createUpdateCommand(id);
-                } catch (NumberFormatException e) {
-                    System.out.println("id должен быть числом");
-                    return null;
-                }
-
-                // remove_by_id - требует id
-            case REMOVE_BY_ID:
-                if (argument == null) {
-                    System.out.println("Укажите id элемента");
-                    return null;
-                }
-                try {
-                    int id = Integer.parseInt(argument);
-                    return new Command(type, id);
-                } catch (NumberFormatException e) {
-                    System.out.println("id должен быть числом");
-                    return null;
-                }
-
-                // remove_lower - требует эталонный vehicle
-            case REMOVE_LOWER:
-                return createRemoveLowerCommand();
-
-            // filter_by_capacity - требует значение capacity
-            case FILTER_BY_CAPACITY:
-                if (argument == null) {
-                    System.out.println("Укажите значение capacity");
-                    return null;
-                }
-                try {
-                    double capacity = Double.parseDouble(argument);
-                    return new Command(type, capacity);
-                } catch (NumberFormatException e) {
-                    System.out.println("capacity должно быть числом");
-                    return null;
-                }
-
-                // filter_less_than_type - требует тип
-            case FILTER_LESS_THAN_TYPE:
-                if (argument == null) {
-                    System.out.println("Укажите тип");
-                    return null;
-                }
-                try {
-                    VehicleType vehicleType = InputValidator.validateAndParseVehicleType(argument);
-                    return new Command(type, vehicleType);
-                } catch (IllegalArgumentException e) {
-                    System.out.println(e.getMessage());
-                    return null;
-                }
-
-                // execute_script - требует имя файла
-            case EXECUTE_SCRIPT:
-                if (argument == null) {
-                    System.out.println("Укажите имя файла скрипта");
-                    return null;
-                }
-                return new Command(type, argument);
-
-            // exit
-            case EXIT:
-                return new Command(type);
-
-            default:
-                return null;
-        }
-    }
-
-    private Command createAddCommand() { // создает команду add
-        System.out.println("Введите данные для добавления:");
-        Vehicle vehicle = readVehicle();
-        return new Command(CommandType.ADD, vehicle);
-    }
-
-    private Command createUpdateCommand(int id) { // создает команду update
-        System.out.println("Введите новые данные для элемента с ID " + id + ":");
-        Vehicle vehicle = readVehicle();
-        return new Command(CommandType.UPDATE, new Object[]{id, vehicle});
-    }
-
-    private Command createRemoveLowerCommand() { // создает команду remove_lower
-        System.out.println("Введите эталонный элемент для сравнения:");
-        Vehicle vehicle = readVehicle();
-        return new Command(CommandType.REMOVE_LOWER, vehicle);
-    }
-
-    // выполняет скрипт из файла
-    private void executeScript(String filename) {
-        // проверка на глубину вложенности
-        if (scriptDepth >= MAX_SCRIPT_DEPTH) {
-            System.out.println("Ошибка: превышена максимальная глубина вложенности скриптов (" + MAX_SCRIPT_DEPTH + ")");
-            return;
-        }
-
-        // проверка на рекурсию (один и тот же скрипт вызывает сам себя)
-        if (scriptStack.contains(filename)) {
-            System.out.println("Ошибка: обнаружена рекурсия (скрипт " + filename + " уже выполняется)");
-            return;
-        }
-
-        scriptStack.add(filename); // добавляем в стек
-        scriptDepth++; // увеличиваем глубину
-        
-        // Сохраняем старый ридер и флаг
-        BufferedReader oldScriptReader = this.scriptReader;
-        boolean oldIsExecutingScript = this.isExecutingScript;
-        
-        this.isExecutingScript = true;
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
-            this.scriptReader = reader; // устанавливаем текущий ридер для чтения полей
-            String line;
-            int lineNum = 0;
-
-            while ((line = reader.readLine()) != null) {
-                lineNum++;
-                line = line.trim();
-
-                if (line.isEmpty() || line.startsWith("#")) continue; // пропускаем пустые строки и комментарии
-
-                System.out.println("[Скрипт " + filename + ":" + lineNum + "] > " + line);
-                sendCommand(line); // выполняем команду из скрипта
-            }
-
-            System.out.println("Скрипт " + filename + " выполнен успешно");
-
-        } catch (FileNotFoundException e) {
-            System.out.println("Ошибка: файл не найден - " + filename);
-        } catch (IOException e) {
-            System.out.println("Ошибка чтения файла: " + e.getMessage());
-        } finally {
-            scriptDepth--; // уменьшаем глубину
-            scriptStack.remove(scriptStack.size() - 1); // убираем из стека
-            this.scriptReader = oldScriptReader; // восстанавливаем старый ридер
-            this.isExecutingScript = oldIsExecutingScript;
-        }
-    }
-    
-    /**
-     * Читает строку из правильного источника (консоль или файл скрипта)
-     */
-    private String readLine() {
-        if (isExecutingScript && scriptReader != null) {
-            try {
-                String line = scriptReader.readLine();
-                if (line != null) {
-                    line = line.trim();
-                    System.out.println("  [из скрипта] > " + line);
-                    return line;
-                }
-            } catch (IOException e) {
-                System.out.println("Ошибка чтения из скрипта: " + e.getMessage());
-            }
-        }
-        // Читаем из консоли
-        return scanner.nextLine().trim();
-    }
-
-    // читает данные транспортного средства с консоли или из скрипта
-    private Vehicle readVehicle() {
-        Vehicle vehicle = new Vehicle();
-        
-        if (!isExecutingScript) {
-            System.out.println("Введите данные транспортного средства:");
-        }
-
-        // ввод имени
-        while (true) {
-            System.out.print("  name (не пустое): ");
-            String input = readLine();
-            try {
-                InputValidator.validateName(input);
-                vehicle.setName(input);
-                break;
-            } catch (IllegalArgumentException e) {
-                System.out.println("  Ошибка: " + e.getMessage());
-            }
-        }
-
-        // ввод координаты x
-        while (true) {
-            System.out.print("  coordinate x (Double, <= 636): ");
-            String input = readLine();
-            try {
-                Double x = input.isEmpty() ? null : Double.parseDouble(input);
-                InputValidator.validateCoordinateX(x);
-
-                Coordinates coords = vehicle.getCoordinates();
-                if (coords == null) coords = new Coordinates();
-                coords.setX(x);
-                vehicle.setCoordinates(coords);
-                break;
-            } catch (NumberFormatException e) {
-                System.out.println("  Ошибка: введите число");
-            } catch (IllegalArgumentException e) {
-                System.out.println("  Ошибка: " + e.getMessage());
-            }
-        }
-
-        // ввод координаты y
-        while (true) {
-            System.out.print("  coordinate y (int): ");
-            try {
-                String input = readLine();
-                int y = Integer.parseInt(input);
-                vehicle.getCoordinates().setY(y);
-                break;
-            } catch (NumberFormatException e) {
-                System.out.print("  Ошибка: введите целое число: ");
-            }
-        }
-
-        // ввод мощности двигателя
-        while (true) {
-            System.out.print("  enginePower (Double > 0): ");
-            String input = readLine();
-            try {
-                Double power = Double.parseDouble(input);
-                InputValidator.validateEnginePower(power);
-                vehicle.setEnginePower(power);
-                break;
-            } catch (NumberFormatException e) {
-                System.out.println("  Ошибка: введите число");
-            } catch (IllegalArgumentException e) {
-                System.out.println("  Ошибка: " + e.getMessage());
-            }
-        }
-
-        // ввод вместимости
-        while (true) {
-            System.out.print("  capacity (double > 0): ");
-            String input = readLine();
-            try {
-                double capacity = Double.parseDouble(input);
-                InputValidator.validateCapacity(capacity);
-                vehicle.setCapacity(capacity);
-                break;
-            } catch (NumberFormatException e) {
-                System.out.println("  Ошибка: введите число");
-            } catch (IllegalArgumentException e) {
-                System.out.println("  Ошибка: " + e.getMessage());
-            }
-        }
-
-        // ввод типа транспорта
-        while (true) {
-            System.out.print("  type (" + VehicleType.getTypes() + "): ");
-            String input = readLine().toUpperCase();
-            try {
-                VehicleType type = InputValidator.validateAndParseVehicleType(input);
-                vehicle.setType(type);
-                break;
-            } catch (IllegalArgumentException e) {
-                System.out.println("  Ошибка: " + e.getMessage());
-            }
-        }
-
-        // ввод типа топлива (может быть null)
-        System.out.print("  fuelType (" + FuelType.getTypes() + ", или пустая строка для null): ");
-        String fuelInput = readLine();
-        if (!fuelInput.isEmpty()) {
-            try {
-                vehicle.setFuelType(FuelType.valueOf(fuelInput.toUpperCase()));
-            } catch (IllegalArgumentException e) {
-                System.out.println("  Неверный тип топлива, будет установлен null");
-                vehicle.setFuelType(null);
-            }
-        } else {
-            vehicle.setFuelType(null);
-        }
-
-        return vehicle;
     }
 
     // закрывает все ресурсы клиента

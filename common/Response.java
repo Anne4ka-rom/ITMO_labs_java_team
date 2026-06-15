@@ -8,33 +8,41 @@ import java.io.Serializable;
  *
  * @author Polina
  * @version 1.0
- * @see ResponseStatus
- * @see Request
  */
 public class Response implements Serializable {
-    private static final long serialVersionUID = 1L; // уникальный идентификатор версии класса для сериализации
+    private static final long serialVersionUID = 1L; // идентификатор версии для совместимости сериализации
 
     private final ResponseStatus status; // статус выполнения команды (SUCCESS или ERROR)
-    private final String message; // сообщение для пользователя (описание результата или ошибки)
-    private final Object data; // дополнительные данные (например, список Vehicle для команды SHOW)
+    private final String message; // текстовое сообщение (результат или описание ошибки)
+    private final Object data; // дополнительные данные (например, коллекция для команды SHOW)
 
-    public Response(ResponseStatus status, String message) { // конструктор ответа без дополнительных данных
-        this(status, message, null); // вызываем конструктор с тремя параметрами
+    // конструктор для ответов без дополнительных данных
+    public Response(ResponseStatus status, String message) {
+        this(status, message, null); // вызываем основной конструктор с data = null
     }
 
-    public Response(ResponseStatus status, String message, Object data) { // конструктор ответа с дополнительными данными
-        this.status = status;  // сохраняем статус
-        this.message = message;  // сохраняем сообщение
-        this.data = data; // сохраняем дополнительные данные
+    // основной конструктор для всех ответов
+    public Response(ResponseStatus status, String message, Object data) {
+        this.status = status; // сохраняем статус
+        this.message = message; // сохраняем сообщение
+        this.data = data; // сохраняем данные (могут быть null)
     }
 
-    public ResponseStatus getStatus() { // возвращает статус выполнения команды
+    // возвращает статус выполнения команды
+    public ResponseStatus getStatus() {
         return status;
     }
 
-    public String getMessage() { // возвращает сообщение для пользователя
+    // возвращает текстовое сообщение
+    public String getMessage() {
         return message;
     }
+
+    // возвращает дополнительные данные (клиент приводит к нужному типу)
+    public Object getData() {
+        return data;
+    }
+}    }
 
     public Object getData() { // возвращает дополнительные данные
         return data;
