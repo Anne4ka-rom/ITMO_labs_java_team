@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vehicles>
+  <vehicle>
+    <id>5</id>
+    <name>Dodge</name>
+    <coordinates>
+      <x>99.0</x>
+      <y>54</y>
+    </coordinates>
+    <creationDate>2026-02-26</creationDate>
+    <enginePower>432.0</enginePower>
+    <capacity>56.0</capacity>
+    <type>CAR</type>
+    <fuelType>ALCOHOL</fuelType>
+  </vehicle>
+  <vehicle>
+    <id>4</id>
+    <name>Haval</name>
+    <coordinates>
+      <x>98.8765432</x>
+      <y>45</y>
+    </coordinates>
+    <creationDate>2026-02-26</creationDate>
+    <enginePower>190.0</enginePower>
+    <capacity>23.0</capacity>
+    <type>CAR</type>
+    <fuelType>GASOLINE</fuelType>
+  </vehicle>
+  <vehicle>
+    <id>3</id>
+    <name>Mountain Bike</name>
+    <coordinates>
+      <x>150.0</x>
+      <y>300</y>
+    </coordinates>
+    <creationDate>2024-01-17</creationDate>
+    <enginePower>0.5</enginePower>
+    <capacity>10.0</capacity>
+    <type>BICYCLE</type>
+    <fuelType>MANPOWER</fuelType>
+  </vehicle>
+  <vehicle>
+    <id>2</id>
+    <name>Mini submarine</name>
+    <coordinates>
+      <x>-1000.0</x>
+      <y>34</y>
+    </coordinates>
+    <creationDate>2026-02-26</creationDate>
+    <enginePower>1000.0</enginePower>
+    <capacity>23.0</capacity>
+    <type>SUBMARINE</type>
+    <fuelType>MANPOWER</fuelType>
+  </vehicle>
+  <vehicle>
+    <id>1</id>
+    <name>Tesla Model S</name>
+    <coordinates>
+      <x>100.5</x>
+      <y>200</y>
+    </coordinates>
+    <creationDate>2024-01-15</creationDate>
+    <enginePower>670.0</enginePower>
+    <capacity>100.0</capacity>
+    <type>CAR</type>
+    <fuelType>GASOLINE</fuelType>
+  </vehicle>
+</vehicles>
